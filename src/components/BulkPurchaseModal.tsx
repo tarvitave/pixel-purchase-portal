@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, ChangeEvent } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,6 +7,7 @@ import { usePhantom } from '@/hooks/usePhantom';
 import { useSolanaTransaction, type SolanaNetwork } from '@/hooks/useSolanaTransaction';
 import { lamportsToSol, solToLamports } from '@/hooks/usePixels';
 import { supabase } from '@/integrations/supabase/client';
+import { Upload } from 'lucide-react';
 
 interface BulkPurchaseModalProps {
   open: boolean;
@@ -31,9 +32,12 @@ export function BulkPurchaseModal({
   const { sendPayment, loading: txLoading, network, setNetwork } = useSolanaTransaction();
   const [loading, setLoading] = useState(false);
   const [imageUrl, setImageUrl] = useState('');
+  const [linkUrl, setLinkUrl] = useState('');
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [extractedColors, setExtractedColors] = useState<string[][]>([]);
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const minX = Math.min(startX, endX);
   const maxX = Math.max(startX, endX);
@@ -45,21 +49,13 @@ export function BulkPurchaseModal({
   const pixelCount = width * height;
   const totalCost = pixelCount * BASE_PRICE_LAMPORTS;
 
-  // Extract colors from image when URL changes
-  useEffect(() => {
-    if (!imageUrl) {
-      setImagePreview(null);
-      setExtractedColors([]);
-      return;
-    }
-
+  const extractColorsFromImage = (imageSrc: string) => {
     const img = new Image();
     img.crossOrigin = 'anonymous';
     
     img.onload = () => {
-      setImagePreview(imageUrl);
+      setImagePreview(imageSrc);
       
-      // Create canvas to extract pixel colors
       const canvas = canvasRef.current;
       if (!canvas) return;
       
@@ -68,10 +64,8 @@ export function BulkPurchaseModal({
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
       
-      // Draw image scaled to selection size
       ctx.drawImage(img, 0, 0, width, height);
       
-      // Extract colors
       const colors: string[][] = [];
       for (let y = 0; y < height; y++) {
         const row: string[] = [];
@@ -89,12 +83,47 @@ export function BulkPurchaseModal({
     };
     
     img.onerror = () => {
-      toast.error('Failed to load image. Make sure the URL is accessible.');
+      toast.error('Failed to load image.');
       setImagePreview(null);
       setExtractedColors([]);
     };
     
-    img.src = imageUrl;
+    img.src = imageSrc;
+  };
+
+  // Handle file upload
+  const handleFileUpload = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please upload an image file');
+      return;
+    }
+    
+    setUploadedFile(file);
+    setImageUrl(''); // Clear URL input
+    
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const dataUrl = event.target?.result as string;
+      extractColorsFromImage(dataUrl);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Extract colors from URL when it changes
+  useEffect(() => {
+    if (!imageUrl) {
+      if (!uploadedFile) {
+        setImagePreview(null);
+        setExtractedColors([]);
+      }
+      return;
+    }
+    
+    setUploadedFile(null); // Clear uploaded file
+    extractColorsFromImage(imageUrl);
   }, [imageUrl, width, height]);
 
   const handlePurchase = async () => {
@@ -141,6 +170,7 @@ export function BulkPurchaseModal({
           wallet: publicKey,
           transaction_signature: transactionSignature,
           network,
+          link_url: linkUrl || null,
         },
       });
 
@@ -239,16 +269,56 @@ export function BulkPurchaseModal({
             </div>
           </div>
 
-          {/* Image URL input */}
-          <div>
-            <label className="text-xs text-muted-foreground block mb-2">
-              Image URL (will be resized to {width}×{height})
-            </label>
+          {/* Image source - Upload or URL */}
+          <div className="space-y-3">
+            <div className="text-xs text-muted-foreground">
+              Image Source (will be resized to {width}×{height})
+            </div>
+            
+            {/* File upload */}
+            <div 
+              onClick={() => fileInputRef.current?.click()}
+              className="flex items-center justify-center gap-2 p-4 border-2 border-dashed border-border rounded-lg cursor-pointer hover:border-primary/50 hover:bg-muted/50 transition-colors"
+            >
+              <Upload className="w-5 h-5 text-muted-foreground" />
+              <span className="text-sm text-muted-foreground">
+                {uploadedFile ? uploadedFile.name : 'Click to upload image'}
+              </span>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleFileUpload}
+                className="hidden"
+              />
+            </div>
+
+            <div className="flex items-center gap-2">
+              <div className="flex-1 h-px bg-border" />
+              <span className="text-xs text-muted-foreground">or</span>
+              <div className="flex-1 h-px bg-border" />
+            </div>
+
+            {/* URL input */}
             <Input
               type="url"
               value={imageUrl}
               onChange={(e) => setImageUrl(e.target.value)}
               placeholder="https://example.com/image.png"
+              className="bg-muted border-border text-foreground"
+            />
+          </div>
+
+          {/* Link URL input */}
+          <div>
+            <label className="text-xs text-muted-foreground block mb-2">
+              Link URL (optional - clicking these pixels will open this URL)
+            </label>
+            <Input
+              type="url"
+              value={linkUrl}
+              onChange={(e) => setLinkUrl(e.target.value)}
+              placeholder="https://yourwebsite.com"
               className="bg-muted border-border text-foreground"
             />
           </div>

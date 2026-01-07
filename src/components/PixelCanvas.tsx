@@ -256,6 +256,11 @@ export function PixelCanvas({
         const pixel = screenToPixel(e.clientX, e.clientY);
         if (pixel) {
           const existingPixel = getPixel(pixel.x, pixel.y);
+          // If pixel has a link, open it instead of showing purchase modal
+          if (existingPixel?.link_url) {
+            window.open(existingPixel.link_url, '_blank', 'noopener,noreferrer');
+            return;
+          }
           onPixelClick(pixel.x, pixel.y, existingPixel);
         }
       }
@@ -369,6 +374,11 @@ export function PixelCanvas({
                 />
                 <span className="text-xs font-mono">{hoveredPixelData.color}</span>
               </div>
+              {hoveredPixelData.link_url && (
+                <div className="mb-2 p-2 bg-primary/10 rounded text-xs text-primary">
+                  🔗 Click to visit link
+                </div>
+              )}
               <div className="text-xs text-muted-foreground mb-1">Current price</div>
               <div className="text-sm text-primary font-bold">
                 {lamportsToSol(hoveredPixelData.price_lamports).toFixed(4)} SOL
