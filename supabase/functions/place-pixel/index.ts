@@ -40,14 +40,15 @@ async function verifyTransaction(
   signature: string,
   expectedSender: string,
   expectedLamports: number,
-  network: 'mainnet-beta' | 'devnet'
+  network: 'mainnet-beta' | 'devnet',
+  treasuryWallet: string
 ): Promise<{ verified: boolean; error?: string }> {
   const rpcUrl = network === 'mainnet-beta' ? SOLANA_RPC_MAINNET : SOLANA_RPC_DEVNET;
 
   try {
     console.log(`Verifying transaction ${signature} on ${network}...`);
+    console.log(`Expected treasury wallet: ${treasuryWallet}`);
     
-    // Fetch the transaction with retries using RPC directly
     let transaction: SolanaTransaction | null = null;
     let attempts = 0;
     const maxAttempts = 5;
@@ -82,25 +83,26 @@ async function verifyTransaction(
       return { verified: false, error: 'Transaction not found on chain' };
     }
 
-    // Check if transaction was successful
     if (transaction.meta?.err) {
       return { verified: false, error: 'Transaction failed on chain' };
     }
 
-    // Get pre and post balances to calculate transfer amount
     const preBalances = transaction.meta?.preBalances || [];
     const postBalances = transaction.meta?.postBalances || [];
     const accountKeys = transaction.transaction.message.accountKeys;
 
-    // Find the sender account index
+    // Find sender and treasury indices
     let senderIndex = -1;
+    let treasuryIndex = -1;
     
     for (let i = 0; i < accountKeys.length; i++) {
       const key = accountKeys[i];
       const pubkeyStr = typeof key === 'string' ? key : key.pubkey;
       if (pubkeyStr === expectedSender) {
         senderIndex = i;
-        break;
+      }
+      if (pubkeyStr === treasuryWallet) {
+        treasuryIndex = i;
       }
     }
 
@@ -108,7 +110,10 @@ async function verifyTransaction(
       return { verified: false, error: 'Sender wallet not found in transaction' };
     }
 
-    // Check the fee payer (first signer should be the sender)
+    if (treasuryIndex === -1) {
+      return { verified: false, error: 'Treasury wallet not found in transaction - payment not sent to correct address' };
+    }
+
     const feePayer = accountKeys[0];
     const feePayerStr = typeof feePayer === 'string' ? feePayer : feePayer.pubkey;
     
@@ -116,20 +121,18 @@ async function verifyTransaction(
       return { verified: false, error: 'Transaction not signed by expected wallet' };
     }
 
-    // Calculate how much the sender paid (including fees)
-    const senderBalanceChange = preBalances[senderIndex] - postBalances[senderIndex];
+    // Verify treasury received the funds
+    const treasuryBalanceChange = postBalances[treasuryIndex] - preBalances[treasuryIndex];
     
-    console.log(`Sender balance change: ${senderBalanceChange} lamports (expected: ${expectedLamports})`);
+    console.log(`Treasury balance change: ${treasuryBalanceChange} lamports (expected: ${expectedLamports})`);
 
-    // The sender should have paid at least the expected amount (plus some for fees)
-    if (senderBalanceChange < expectedLamports) {
+    if (treasuryBalanceChange < expectedLamports) {
       return { 
         verified: false, 
-        error: `Insufficient payment: ${senderBalanceChange} lamports paid, ${expectedLamports} required` 
+        error: `Insufficient payment to treasury: ${treasuryBalanceChange} lamports received, ${expectedLamports} required` 
       };
     }
 
-    // Verify the transaction is recent (within last 5 minutes)
     const blockTime = transaction.blockTime;
     if (blockTime) {
       const now = Math.floor(Date.now() / 1000);
@@ -252,12 +255,23 @@ serve(async (req) => {
         );
       }
 
+      // Get treasury wallet from environment
+      const treasuryWallet = Deno.env.get('TREASURY_WALLET_ADDRESS');
+      if (!treasuryWallet) {
+        console.error('TREASURY_WALLET_ADDRESS not configured');
+        return new Response(
+          JSON.stringify({ error: 'Server configuration error' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
       // Verify the actual Solana transaction
       const verification = await verifyTransaction(
         transaction_signature,
         wallet,
         price_lamports,
-        network
+        network,
+        treasuryWallet
       );
 
       if (!verification.verified) {

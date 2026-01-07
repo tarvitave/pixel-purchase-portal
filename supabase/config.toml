@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.place-pixels-bulk]
 verify_jwt = false
+
+[functions.get-treasury-wallet]
+verify_jwt = false

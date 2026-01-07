@@ -45,12 +45,14 @@ async function verifyTransaction(
   signature: string,
   expectedSender: string,
   expectedLamports: number,
-  network: 'mainnet-beta' | 'devnet'
+  network: 'mainnet-beta' | 'devnet',
+  treasuryWallet: string
 ): Promise<{ verified: boolean; error?: string }> {
   const rpcUrl = network === 'mainnet-beta' ? SOLANA_RPC_MAINNET : SOLANA_RPC_DEVNET;
 
   try {
     console.log(`Verifying transaction ${signature} on ${network}...`);
+    console.log(`Expected treasury wallet: ${treasuryWallet}`);
     
     let transaction: SolanaTransaction | null = null;
     let attempts = 0;
@@ -94,18 +96,27 @@ async function verifyTransaction(
     const postBalances = transaction.meta?.postBalances || [];
     const accountKeys = transaction.transaction.message.accountKeys;
 
+    // Find sender and treasury indices
     let senderIndex = -1;
+    let treasuryIndex = -1;
+    
     for (let i = 0; i < accountKeys.length; i++) {
       const key = accountKeys[i];
       const pubkeyStr = typeof key === 'string' ? key : key.pubkey;
       if (pubkeyStr === expectedSender) {
         senderIndex = i;
-        break;
+      }
+      if (pubkeyStr === treasuryWallet) {
+        treasuryIndex = i;
       }
     }
 
     if (senderIndex === -1) {
       return { verified: false, error: 'Sender wallet not found in transaction' };
+    }
+
+    if (treasuryIndex === -1) {
+      return { verified: false, error: 'Treasury wallet not found in transaction - payment not sent to correct address' };
     }
 
     const feePayer = accountKeys[0];
@@ -115,14 +126,15 @@ async function verifyTransaction(
       return { verified: false, error: 'Transaction not signed by expected wallet' };
     }
 
-    const senderBalanceChange = preBalances[senderIndex] - postBalances[senderIndex];
+    // Verify treasury received the funds
+    const treasuryBalanceChange = postBalances[treasuryIndex] - preBalances[treasuryIndex];
     
-    console.log(`Sender balance change: ${senderBalanceChange} lamports (expected: ${expectedLamports})`);
+    console.log(`Treasury balance change: ${treasuryBalanceChange} lamports (expected: ${expectedLamports})`);
 
-    if (senderBalanceChange < expectedLamports) {
+    if (treasuryBalanceChange < expectedLamports) {
       return { 
         verified: false, 
-        error: `Insufficient payment: ${senderBalanceChange} lamports paid, ${expectedLamports} required` 
+        error: `Insufficient payment to treasury: ${treasuryBalanceChange} lamports received, ${expectedLamports} required` 
       };
     }
 
@@ -242,12 +254,23 @@ serve(async (req) => {
       );
     }
 
+    // Get treasury wallet from environment
+    const treasuryWallet = Deno.env.get('TREASURY_WALLET_ADDRESS');
+    if (!treasuryWallet) {
+      console.error('TREASURY_WALLET_ADDRESS not configured');
+      return new Response(
+        JSON.stringify({ error: 'Server configuration error' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // Verify the Solana transaction
     const verification = await verifyTransaction(
       transaction_signature,
       wallet,
       price_lamports,
-      network
+      network,
+      treasuryWallet
     );
 
     if (!verification.verified) {
