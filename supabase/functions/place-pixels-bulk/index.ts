@@ -24,6 +24,7 @@ interface PlacePixelsBulkRequest {
   wallet: string;
   transaction_signature: string;
   network: 'mainnet-beta' | 'devnet';
+  link_url?: string | null;
 }
 
 interface SolanaTransaction {
@@ -155,13 +156,14 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
     
     const body: PlacePixelsBulkRequest = await req.json();
-    const { pixels, price_lamports, wallet, transaction_signature, network = 'devnet' } = body;
+    const { pixels, price_lamports, wallet, transaction_signature, network = 'devnet', link_url } = body;
 
     console.log('Bulk place pixels request:', { 
       pixelCount: pixels.length, 
       price_lamports, 
       wallet, 
-      network 
+      network,
+      link_url: link_url ? 'provided' : 'none'
     });
 
     // Validate inputs
@@ -266,6 +268,7 @@ serve(async (req) => {
       price_lamports: pricePerPixel,
       // Only first pixel gets the transaction signature for tracking
       transaction_signature: index === 0 ? transaction_signature : null,
+      link_url: link_url || null,
     }));
 
     // Bulk upsert pixels
