@@ -3,6 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { usePhantom } from '@/hooks/usePhantom';
+import { useSolanaTransaction, type SolanaNetwork } from '@/hooks/useSolanaTransaction';
 import { type Pixel, lamportsToSol, getMinBidLamports, solToLamports } from '@/hooks/usePixels';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -18,7 +19,8 @@ interface PurchaseModalProps {
 const BASE_PRICE_SOL = 0.001;
 
 export function PurchaseModal({ open, onClose, x, y, color, existingPixel }: PurchaseModalProps) {
-  const { publicKey, signMessage, connected } = usePhantom();
+  const { publicKey, connected } = usePhantom();
+  const { sendPayment, loading: txLoading, network, setNetwork } = useSolanaTransaction();
   const [loading, setLoading] = useState(false);
   const [bidAmount, setBidAmount] = useState<string>('');
 
@@ -43,23 +45,19 @@ export function PurchaseModal({ open, onClose, x, y, color, existingPixel }: Pur
     setLoading(true);
 
     try {
-      // Create a message for the user to sign
-      const message = JSON.stringify({
-        action: 'place_pixel',
-        x,
-        y,
-        color,
-        price_lamports: bidLamports,
-        wallet: publicKey,
-        timestamp: Date.now(),
-      });
+      let transactionSignature: string | null = null;
 
-      // Sign the message with Phantom
-      const signature = await signMessage(message);
-      
-      if (!signature) {
-        toast.error('Failed to sign transaction');
-        return;
+      // Only send payment if there's a cost (not updating own pixel)
+      if (!isOwnPixel) {
+        toast.info('Please approve the transaction in Phantom...');
+        transactionSignature = await sendPayment(bidLamports, network);
+        
+        if (!transactionSignature) {
+          setLoading(false);
+          return; // User cancelled or transaction failed
+        }
+
+        toast.success('Payment confirmed! Placing pixel...');
       }
 
       // Call the edge function to verify and place the pixel
@@ -70,8 +68,8 @@ export function PurchaseModal({ open, onClose, x, y, color, existingPixel }: Pur
           color,
           price_lamports: bidLamports,
           wallet: publicKey,
-          signature,
-          message,
+          transaction_signature: transactionSignature,
+          network,
         },
       });
 
@@ -96,6 +94,8 @@ export function PurchaseModal({ open, onClose, x, y, color, existingPixel }: Pur
     }
   };
 
+  const isProcessing = loading || txLoading;
+
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
       <DialogContent className="bg-card border-border max-w-md">
@@ -110,6 +110,47 @@ export function PurchaseModal({ open, onClose, x, y, color, existingPixel }: Pur
         </DialogHeader>
 
         <div className="space-y-4">
+          {/* Network selector */}
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">Network:</span>
+            <div className="flex gap-1">
+              <button
+                onClick={() => setNetwork('devnet')}
+                className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
+                  network === 'devnet' 
+                    ? 'bg-primary text-primary-foreground' 
+                    : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                }`}
+              >
+                Devnet
+              </button>
+              <button
+                onClick={() => setNetwork('mainnet-beta')}
+                className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
+                  network === 'mainnet-beta' 
+                    ? 'bg-primary text-primary-foreground' 
+                    : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                }`}
+              >
+                Mainnet
+              </button>
+            </div>
+          </div>
+
+          {network === 'devnet' && (
+            <div className="text-xs text-amber-500 bg-amber-500/10 px-3 py-2 rounded">
+              ⚠️ Using Devnet - Get free SOL from{' '}
+              <a 
+                href="https://faucet.solana.com/" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="underline hover:text-amber-400"
+              >
+                Solana Faucet
+              </a>
+            </div>
+          )}
+
           {/* Pixel preview */}
           <div className="flex items-center gap-4 p-4 bg-muted rounded-lg">
             <div 
@@ -181,19 +222,19 @@ export function PurchaseModal({ open, onClose, x, y, color, existingPixel }: Pur
               variant="outline"
               onClick={onClose}
               className="flex-1 border-border"
-              disabled={loading}
+              disabled={isProcessing}
             >
               Cancel
             </Button>
             <Button
               onClick={handlePurchase}
-              disabled={loading || !connected}
+              disabled={isProcessing || !connected}
               className="flex-1 bg-gradient-to-r from-primary to-secondary hover:opacity-90"
             >
-              {loading ? (
+              {isProcessing ? (
                 <>
                   <div className="w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin mr-2" />
-                  Processing...
+                  {txLoading ? 'Sending...' : 'Processing...'}
                 </>
               ) : isOwnPixel ? (
                 'Update Color'
@@ -206,6 +247,13 @@ export function PurchaseModal({ open, onClose, x, y, color, existingPixel }: Pur
           {!connected && (
             <p className="text-xs text-center text-muted-foreground">
               Connect your Phantom wallet to place pixels
+            </p>
+          )}
+
+          {/* Transaction info */}
+          {!isOwnPixel && connected && (
+            <p className="text-xs text-center text-muted-foreground">
+              Real SOL transaction on {network === 'mainnet-beta' ? 'Mainnet' : 'Devnet'}
             </p>
           )}
         </div>

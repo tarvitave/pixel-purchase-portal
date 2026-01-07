@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import { createClient } from "jsr:@supabase/supabase-js@2";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -8,14 +8,144 @@ const corsHeaders = {
 
 const BASE_PRICE_LAMPORTS = 1_000_000; // 0.001 SOL
 
+// Solana RPC endpoints
+const SOLANA_RPC_MAINNET = "https://api.mainnet-beta.solana.com";
+const SOLANA_RPC_DEVNET = "https://api.devnet.solana.com";
+
 interface PlacePixelRequest {
   x: number;
   y: number;
   color: string;
   price_lamports: number;
   wallet: string;
-  signature: string;
-  message: string;
+  transaction_signature: string;
+  network: 'mainnet-beta' | 'devnet';
+}
+
+interface SolanaTransaction {
+  blockTime: number | null;
+  meta: {
+    err: unknown;
+    preBalances: number[];
+    postBalances: number[];
+  } | null;
+  transaction: {
+    message: {
+      accountKeys: Array<string | { pubkey: string }>;
+    };
+  };
+}
+
+async function verifyTransaction(
+  signature: string,
+  expectedSender: string,
+  expectedLamports: number,
+  network: 'mainnet-beta' | 'devnet'
+): Promise<{ verified: boolean; error?: string }> {
+  const rpcUrl = network === 'mainnet-beta' ? SOLANA_RPC_MAINNET : SOLANA_RPC_DEVNET;
+
+  try {
+    console.log(`Verifying transaction ${signature} on ${network}...`);
+    
+    // Fetch the transaction with retries using RPC directly
+    let transaction: SolanaTransaction | null = null;
+    let attempts = 0;
+    const maxAttempts = 5;
+    
+    while (!transaction && attempts < maxAttempts) {
+      const response = await fetch(rpcUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'getTransaction',
+          params: [
+            signature,
+            { encoding: 'jsonParsed', commitment: 'confirmed', maxSupportedTransactionVersion: 0 }
+          ],
+        }),
+      });
+
+      const result = await response.json();
+      
+      if (result.result) {
+        transaction = result.result;
+      } else {
+        attempts++;
+        console.log(`Transaction not found, attempt ${attempts}/${maxAttempts}...`);
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      }
+    }
+
+    if (!transaction) {
+      return { verified: false, error: 'Transaction not found on chain' };
+    }
+
+    // Check if transaction was successful
+    if (transaction.meta?.err) {
+      return { verified: false, error: 'Transaction failed on chain' };
+    }
+
+    // Get pre and post balances to calculate transfer amount
+    const preBalances = transaction.meta?.preBalances || [];
+    const postBalances = transaction.meta?.postBalances || [];
+    const accountKeys = transaction.transaction.message.accountKeys;
+
+    // Find the sender account index
+    let senderIndex = -1;
+    
+    for (let i = 0; i < accountKeys.length; i++) {
+      const key = accountKeys[i];
+      const pubkeyStr = typeof key === 'string' ? key : key.pubkey;
+      if (pubkeyStr === expectedSender) {
+        senderIndex = i;
+        break;
+      }
+    }
+
+    if (senderIndex === -1) {
+      return { verified: false, error: 'Sender wallet not found in transaction' };
+    }
+
+    // Check the fee payer (first signer should be the sender)
+    const feePayer = accountKeys[0];
+    const feePayerStr = typeof feePayer === 'string' ? feePayer : feePayer.pubkey;
+    
+    if (feePayerStr !== expectedSender) {
+      return { verified: false, error: 'Transaction not signed by expected wallet' };
+    }
+
+    // Calculate how much the sender paid (including fees)
+    const senderBalanceChange = preBalances[senderIndex] - postBalances[senderIndex];
+    
+    console.log(`Sender balance change: ${senderBalanceChange} lamports (expected: ${expectedLamports})`);
+
+    // The sender should have paid at least the expected amount (plus some for fees)
+    if (senderBalanceChange < expectedLamports) {
+      return { 
+        verified: false, 
+        error: `Insufficient payment: ${senderBalanceChange} lamports paid, ${expectedLamports} required` 
+      };
+    }
+
+    // Verify the transaction is recent (within last 5 minutes)
+    const blockTime = transaction.blockTime;
+    if (blockTime) {
+      const now = Math.floor(Date.now() / 1000);
+      const fiveMinutes = 5 * 60;
+      
+      if (now - blockTime > fiveMinutes) {
+        return { verified: false, error: 'Transaction is too old (more than 5 minutes)' };
+      }
+    }
+
+    console.log('Transaction verified successfully!');
+    return { verified: true };
+  } catch (error) {
+    console.error('Error verifying transaction:', error);
+    return { verified: false, error: `Verification error: ${(error as Error).message}` };
+  }
 }
 
 serve(async (req) => {
@@ -31,9 +161,9 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
     
     const body: PlacePixelRequest = await req.json();
-    const { x, y, color, price_lamports, wallet, signature, message } = body;
+    const { x, y, color, price_lamports, wallet, transaction_signature, network = 'devnet' } = body;
 
-    console.log('Place pixel request:', { x, y, color, price_lamports, wallet });
+    console.log('Place pixel request:', { x, y, color, price_lamports, wallet, network, transaction_signature });
 
     // Validate inputs
     if (x < 0 || x >= 1000 || y < 0 || y >= 1000) {
@@ -53,35 +183,6 @@ serve(async (req) => {
     if (!wallet || wallet.length < 32) {
       return new Response(
         JSON.stringify({ error: 'Invalid wallet address' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    if (!signature) {
-      return new Response(
-        JSON.stringify({ error: 'Signature required' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Verify the message matches what we expect
-    try {
-      const parsedMessage = JSON.parse(message);
-      if (
-        parsedMessage.x !== x ||
-        parsedMessage.y !== y ||
-        parsedMessage.color !== color ||
-        parsedMessage.wallet !== wallet ||
-        parsedMessage.price_lamports !== price_lamports
-      ) {
-        return new Response(
-          JSON.stringify({ error: 'Message content mismatch' }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-    } catch {
-      return new Response(
-        JSON.stringify({ error: 'Invalid message format' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -115,23 +216,58 @@ serve(async (req) => {
       }
     }
 
-    // For new purchases or outbids, validate price
-    if (requiredPrice > 0 && price_lamports < requiredPrice) {
-      return new Response(
-        JSON.stringify({ 
-          error: `Insufficient bid. Minimum required: ${requiredPrice} lamports`,
-          required_price: requiredPrice 
-        }),
-        { 
-          status: 402, // Payment Required - x402!
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-        }
-      );
-    }
+    // For new purchases or outbids, validate price and verify transaction
+    if (requiredPrice > 0) {
+      if (price_lamports < requiredPrice) {
+        return new Response(
+          JSON.stringify({ 
+            error: `Insufficient bid. Minimum required: ${requiredPrice} lamports`,
+            required_price: requiredPrice 
+          }),
+          { 
+            status: 402, // Payment Required - x402!
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+          }
+        );
+      }
 
-    // In a production environment, you would verify the actual Solana transaction here
-    // For now, we trust the signed message as proof of intent to pay
-    // The signature proves the wallet holder authorized this action
+      if (!transaction_signature) {
+        return new Response(
+          JSON.stringify({ error: 'Transaction signature required for payment verification' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Check if this transaction signature has been used before
+      const { data: existingTx } = await supabase
+        .from('pixels')
+        .select('id')
+        .eq('transaction_signature', transaction_signature)
+        .single();
+
+      if (existingTx) {
+        return new Response(
+          JSON.stringify({ error: 'Transaction signature already used' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Verify the actual Solana transaction
+      const verification = await verifyTransaction(
+        transaction_signature,
+        wallet,
+        price_lamports,
+        network
+      );
+
+      if (!verification.verified) {
+        console.error('Transaction verification failed:', verification.error);
+        return new Response(
+          JSON.stringify({ error: verification.error || 'Transaction verification failed' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
 
     // Upsert the pixel
     const pixelData = {
@@ -140,7 +276,7 @@ serve(async (req) => {
       color,
       owner_wallet: wallet,
       price_lamports: requiredPrice > 0 ? price_lamports : existingPixel?.price_lamports || BASE_PRICE_LAMPORTS,
-      transaction_signature: signature,
+      transaction_signature: transaction_signature || existingPixel?.transaction_signature,
     };
 
     const { data: upsertedPixel, error: upsertError } = await supabase
