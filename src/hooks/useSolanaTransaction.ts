@@ -8,25 +8,21 @@ import {
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 
-// RPC endpoints
-const RPC_ENDPOINTS = {
-  'mainnet-beta': 'https://api.mainnet-beta.solana.com',
-  'devnet': 'https://api.devnet.solana.com',
-};
+// Mainnet RPC endpoint
+const RPC_ENDPOINT = 'https://api.mainnet-beta.solana.com';
 
-export type SolanaNetwork = 'mainnet-beta' | 'devnet';
+export type SolanaNetwork = 'mainnet-beta';
 
 export interface UseSolanaTransactionReturn {
-  sendPayment: (lamports: number, network?: SolanaNetwork) => Promise<string | null>;
+  sendPayment: (lamports: number) => Promise<string | null>;
   loading: boolean;
   network: SolanaNetwork;
-  setNetwork: (network: SolanaNetwork) => void;
   treasuryWallet: string | null;
 }
 
 export function useSolanaTransaction(): UseSolanaTransactionReturn {
   const [loading, setLoading] = useState(false);
-  const [network, setNetwork] = useState<SolanaNetwork>('devnet');
+  const network: SolanaNetwork = 'mainnet-beta';
   const [treasuryWallet, setTreasuryWallet] = useState<string | null>(null);
 
   // Fetch treasury wallet on mount
@@ -51,8 +47,7 @@ export function useSolanaTransaction(): UseSolanaTransactionReturn {
   }, []);
 
   const sendPayment = useCallback(async (
-    lamports: number, 
-    targetNetwork: SolanaNetwork = network
+    lamports: number
   ): Promise<string | null> => {
     const provider = window.solana;
     
@@ -69,7 +64,7 @@ export function useSolanaTransaction(): UseSolanaTransactionReturn {
     setLoading(true);
 
     try {
-      const connection = new Connection(RPC_ENDPOINTS[targetNetwork], 'confirmed');
+      const connection = new Connection(RPC_ENDPOINT, 'confirmed');
       
       // Get the public key as a proper PublicKey object
       const fromPubkey = new PublicKey(provider.publicKey.toString());
@@ -90,7 +85,7 @@ export function useSolanaTransaction(): UseSolanaTransactionReturn {
       transaction.recentBlockhash = blockhash;
       transaction.feePayer = fromPubkey;
 
-      console.log(`Sending ${lamports} lamports to ${treasuryWallet} on ${targetNetwork}...`);
+      console.log(`Sending ${lamports} lamports to ${treasuryWallet} on mainnet...`);
 
       // Sign the transaction using Phantom
       const signedTransaction = await provider.signTransaction(transaction);
@@ -134,13 +129,12 @@ export function useSolanaTransaction(): UseSolanaTransactionReturn {
     } finally {
       setLoading(false);
     }
-  }, [network, treasuryWallet]);
+  }, [treasuryWallet]);
 
   return {
     sendPayment,
     loading,
     network,
-    setNetwork,
     treasuryWallet,
   };
 }

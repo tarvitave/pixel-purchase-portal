@@ -8,9 +8,8 @@ const corsHeaders = {
 
 const BASE_PRICE_LAMPORTS = 100_000; // 0.0001 SOL per pixel
 
-// Solana RPC endpoints
-const SOLANA_RPC_MAINNET = "https://api.mainnet-beta.solana.com";
-const SOLANA_RPC_DEVNET = "https://api.devnet.solana.com";
+// Solana RPC endpoint (mainnet only)
+const SOLANA_RPC = "https://api.mainnet-beta.solana.com";
 
 interface PixelData {
   x: number;
@@ -23,7 +22,7 @@ interface PlacePixelsBulkRequest {
   price_lamports: number;
   wallet: string;
   transaction_signature: string;
-  network: 'mainnet-beta' | 'devnet';
+  network: 'mainnet-beta';
   link_url?: string | null;
 }
 
@@ -45,13 +44,10 @@ async function verifyTransaction(
   signature: string,
   expectedSender: string,
   expectedLamports: number,
-  network: 'mainnet-beta' | 'devnet',
   treasuryWallet: string
 ): Promise<{ verified: boolean; error?: string }> {
-  const rpcUrl = network === 'mainnet-beta' ? SOLANA_RPC_MAINNET : SOLANA_RPC_DEVNET;
-
   try {
-    console.log(`Verifying transaction ${signature} on ${network}...`);
+    console.log(`Verifying transaction ${signature} on mainnet...`);
     console.log(`Expected treasury wallet: ${treasuryWallet}`);
     
     let transaction: SolanaTransaction | null = null;
@@ -59,7 +55,7 @@ async function verifyTransaction(
     const maxAttempts = 5;
     
     while (!transaction && attempts < maxAttempts) {
-      const response = await fetch(rpcUrl, {
+      const response = await fetch(SOLANA_RPC, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -168,13 +164,12 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
     
     const body: PlacePixelsBulkRequest = await req.json();
-    const { pixels, price_lamports, wallet, transaction_signature, network = 'devnet', link_url } = body;
+    const { pixels, price_lamports, wallet, transaction_signature, link_url } = body;
 
     console.log('Bulk place pixels request:', { 
       pixelCount: pixels.length, 
       price_lamports, 
       wallet, 
-      network,
       link_url: link_url ? 'provided' : 'none'
     });
 
@@ -269,7 +264,6 @@ serve(async (req) => {
       transaction_signature,
       wallet,
       price_lamports,
-      network,
       treasuryWallet
     );
 

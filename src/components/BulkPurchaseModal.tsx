@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 import { usePhantom } from '@/hooks/usePhantom';
-import { useSolanaTransaction, type SolanaNetwork } from '@/hooks/useSolanaTransaction';
+import { useSolanaTransaction } from '@/hooks/useSolanaTransaction';
 import { lamportsToSol, solToLamports } from '@/hooks/usePixels';
 import { supabase } from '@/integrations/supabase/client';
 import { Upload } from 'lucide-react';
@@ -29,7 +29,7 @@ export function BulkPurchaseModal({
   endY 
 }: BulkPurchaseModalProps) {
   const { publicKey, connected } = usePhantom();
-  const { sendPayment, loading: txLoading, network, setNetwork } = useSolanaTransaction();
+  const { sendPayment, loading: txLoading, network } = useSolanaTransaction();
   const [loading, setLoading] = useState(false);
   const [imageUrl, setImageUrl] = useState('');
   const [linkUrl, setLinkUrl] = useState('');
@@ -141,7 +141,7 @@ export function BulkPurchaseModal({
 
     try {
       toast.info('Please approve the transaction in Phantom...');
-      const transactionSignature = await sendPayment(totalCost, network);
+      const transactionSignature = await sendPayment(totalCost);
       
       if (!transactionSignature) {
         setLoading(false);
@@ -210,46 +210,13 @@ export function BulkPurchaseModal({
           {/* Hidden canvas for color extraction */}
           <canvas ref={canvasRef} className="hidden" />
 
-          {/* Network selector */}
+          {/* Network indicator */}
           <div className="flex items-center gap-2">
             <span className="text-xs text-muted-foreground">Network:</span>
-            <div className="flex gap-1">
-              <button
-                onClick={() => setNetwork('devnet')}
-                className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
-                  network === 'devnet' 
-                    ? 'bg-primary text-primary-foreground' 
-                    : 'bg-muted text-muted-foreground hover:bg-muted/80'
-                }`}
-              >
-                Devnet
-              </button>
-              <button
-                onClick={() => setNetwork('mainnet-beta')}
-                className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
-                  network === 'mainnet-beta' 
-                    ? 'bg-primary text-primary-foreground' 
-                    : 'bg-muted text-muted-foreground hover:bg-muted/80'
-                }`}
-              >
-                Mainnet
-              </button>
-            </div>
+            <span className="px-3 py-1 rounded text-xs font-medium bg-accent text-accent-foreground">
+              Solana Mainnet
+            </span>
           </div>
-
-          {network === 'devnet' && (
-            <div className="text-xs text-amber-500 bg-amber-500/10 px-3 py-2 rounded">
-              ⚠️ Using Devnet - Get free SOL from{' '}
-              <a 
-                href="https://faucet.solana.com/" 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="underline hover:text-amber-400"
-              >
-                Solana Faucet
-              </a>
-            </div>
-          )}
 
           {/* Selection info */}
           <div className="p-4 bg-muted rounded-lg">
