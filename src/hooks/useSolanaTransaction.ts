@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { 
   Connection, 
   PublicKey, 
@@ -6,9 +6,7 @@ import {
   SystemProgram,
 } from '@solana/web3.js';
 import { toast } from 'sonner';
-
-// Treasury wallet to receive payments - this should match the backend
-const TREASURY_WALLET = new PublicKey("11111111111111111111111111111111");
+import { supabase } from '@/integrations/supabase/client';
 
 // RPC endpoints
 const RPC_ENDPOINTS = {
@@ -23,11 +21,34 @@ export interface UseSolanaTransactionReturn {
   loading: boolean;
   network: SolanaNetwork;
   setNetwork: (network: SolanaNetwork) => void;
+  treasuryWallet: string | null;
 }
 
 export function useSolanaTransaction(): UseSolanaTransactionReturn {
   const [loading, setLoading] = useState(false);
   const [network, setNetwork] = useState<SolanaNetwork>('devnet');
+  const [treasuryWallet, setTreasuryWallet] = useState<string | null>(null);
+
+  // Fetch treasury wallet on mount
+  useEffect(() => {
+    const fetchTreasuryWallet = async () => {
+      try {
+        const { data, error } = await supabase.functions.invoke('get-treasury-wallet');
+        if (error) {
+          console.error('Failed to fetch treasury wallet:', error);
+          return;
+        }
+        if (data?.treasury_wallet) {
+          setTreasuryWallet(data.treasury_wallet);
+          console.log('Treasury wallet loaded:', data.treasury_wallet);
+        }
+      } catch (err) {
+        console.error('Error fetching treasury wallet:', err);
+      }
+    };
+    
+    fetchTreasuryWallet();
+  }, []);
 
   const sendPayment = useCallback(async (
     lamports: number, 
@@ -40,6 +61,11 @@ export function useSolanaTransaction(): UseSolanaTransactionReturn {
       return null;
     }
 
+    if (!treasuryWallet) {
+      toast.error('Treasury wallet not configured');
+      return null;
+    }
+
     setLoading(true);
 
     try {
@@ -47,6 +73,7 @@ export function useSolanaTransaction(): UseSolanaTransactionReturn {
       
       // Get the public key as a proper PublicKey object
       const fromPubkey = new PublicKey(provider.publicKey.toString());
+      const toPubkey = new PublicKey(treasuryWallet);
       
       // Get the latest blockhash
       const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('confirmed');
@@ -55,7 +82,7 @@ export function useSolanaTransaction(): UseSolanaTransactionReturn {
       const transaction = new Transaction().add(
         SystemProgram.transfer({
           fromPubkey,
-          toPubkey: TREASURY_WALLET,
+          toPubkey,
           lamports: lamports,
         })
       );
@@ -63,7 +90,7 @@ export function useSolanaTransaction(): UseSolanaTransactionReturn {
       transaction.recentBlockhash = blockhash;
       transaction.feePayer = fromPubkey;
 
-      console.log(`Sending ${lamports} lamports on ${targetNetwork}...`);
+      console.log(`Sending ${lamports} lamports to ${treasuryWallet} on ${targetNetwork}...`);
 
       // Sign the transaction using Phantom
       const signedTransaction = await provider.signTransaction(transaction);
@@ -107,12 +134,13 @@ export function useSolanaTransaction(): UseSolanaTransactionReturn {
     } finally {
       setLoading(false);
     }
-  }, [network]);
+  }, [network, treasuryWallet]);
 
   return {
     sendPayment,
     loading,
     network,
     setNetwork,
+    treasuryWallet,
   };
 }
