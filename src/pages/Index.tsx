@@ -3,6 +3,7 @@ import { Header } from '@/components/Header';
 import { PixelCanvas } from '@/components/PixelCanvas';
 import { ColorPicker } from '@/components/ColorPicker';
 import { PurchaseModal } from '@/components/PurchaseModal';
+import { BulkPurchaseModal } from '@/components/BulkPurchaseModal';
 import { Leaderboard } from '@/components/Leaderboard';
 import { usePixels, type Pixel } from '@/hooks/usePixels';
 import { usePhantom } from '@/hooks/usePhantom';
@@ -10,12 +11,20 @@ import { toast } from 'sonner';
 
 const Index = () => {
   const [selectedColor, setSelectedColor] = useState('#A855F7');
+  const [selectionMode, setSelectionMode] = useState<'single' | 'rectangle'>('single');
   const [purchaseModal, setPurchaseModal] = useState<{
     open: boolean;
     x: number;
     y: number;
     existingPixel?: Pixel;
   }>({ open: false, x: 0, y: 0 });
+  const [bulkModal, setBulkModal] = useState<{
+    open: boolean;
+    startX: number;
+    startY: number;
+    endX: number;
+    endY: number;
+  }>({ open: false, startX: 0, startY: 0, endX: 0, endY: 0 });
   
   const { pixelCount } = usePixels();
   const { connected } = usePhantom();
@@ -29,6 +38,15 @@ const Index = () => {
     setPurchaseModal({ open: true, x, y, existingPixel });
   };
 
+  const handleRectangleSelect = (startX: number, startY: number, endX: number, endY: number) => {
+    if (!connected) {
+      toast.error('Connect your Phantom wallet to place pixels');
+      return;
+    }
+    
+    setBulkModal({ open: true, startX, startY, endX, endY });
+  };
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <Header pixelCount={pixelCount} />
@@ -40,8 +58,34 @@ const Index = () => {
           <PixelCanvas
             selectedColor={selectedColor}
             onPixelClick={handlePixelClick}
+            onRectangleSelect={handleRectangleSelect}
             walletConnected={connected}
+            selectionMode={selectionMode}
           />
+          
+          {/* Selection mode toggle */}
+          <div className="absolute top-4 right-20 flex bg-card/95 backdrop-blur-sm border border-border rounded-lg overflow-hidden">
+            <button
+              onClick={() => setSelectionMode('single')}
+              className={`px-3 py-2 text-xs font-medium transition-colors ${
+                selectionMode === 'single'
+                  ? 'bg-primary text-primary-foreground'
+                  : 'text-muted-foreground hover:bg-muted'
+              }`}
+            >
+              Single
+            </button>
+            <button
+              onClick={() => setSelectionMode('rectangle')}
+              className={`px-3 py-2 text-xs font-medium transition-colors ${
+                selectionMode === 'rectangle'
+                  ? 'bg-primary text-primary-foreground'
+                  : 'text-muted-foreground hover:bg-muted'
+              }`}
+            >
+              Rectangle
+            </button>
+          </div>
         </div>
 
         {/* Sidebar */}
@@ -61,19 +105,19 @@ const Index = () => {
               </li>
               <li className="flex gap-2">
                 <span className="text-primary font-bold">2.</span>
-                Select a color from the palette
+                Select a color or use Rectangle mode
               </li>
               <li className="flex gap-2">
                 <span className="text-primary font-bold">3.</span>
-                Click on any pixel to claim it
+                Click pixel or drag to select area
               </li>
               <li className="flex gap-2">
                 <span className="text-primary font-bold">4.</span>
-                Pay 0.001 SOL (~$0.15) per pixel
+                For bulk: paste an image URL
               </li>
               <li className="flex gap-2">
                 <span className="text-primary font-bold">5.</span>
-                Outbid others to take their pixels!
+                Pay 0.0001 SOL per pixel
               </li>
             </ol>
           </div>
@@ -112,7 +156,7 @@ const Index = () => {
               </div>
               <div className="flex justify-between text-xs">
                 <span className="text-muted-foreground">Base Price</span>
-                <span className="font-mono text-primary">0.001 SOL</span>
+                <span className="font-mono text-primary">0.0001 SOL</span>
               </div>
             </div>
           </div>
@@ -127,6 +171,16 @@ const Index = () => {
         y={purchaseModal.y}
         color={selectedColor}
         existingPixel={purchaseModal.existingPixel}
+      />
+
+      {/* Bulk purchase modal */}
+      <BulkPurchaseModal
+        open={bulkModal.open}
+        onClose={() => setBulkModal({ open: false, startX: 0, startY: 0, endX: 0, endY: 0 })}
+        startX={bulkModal.startX}
+        startY={bulkModal.startY}
+        endX={bulkModal.endX}
+        endY={bulkModal.endY}
       />
     </div>
   );

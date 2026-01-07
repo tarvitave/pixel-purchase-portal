@@ -4,7 +4,9 @@ import { usePixels, type Pixel, getMinBidLamports, lamportsToSol } from '@/hooks
 interface PixelCanvasProps {
   selectedColor: string;
   onPixelClick: (x: number, y: number, existingPixel: Pixel | undefined) => void;
+  onRectangleSelect?: (startX: number, startY: number, endX: number, endY: number) => void;
   walletConnected: boolean;
+  selectionMode?: 'single' | 'rectangle';
 }
 
 const CANVAS_SIZE = 1000;
@@ -12,7 +14,13 @@ const MIN_ZOOM = 0.5;
 const MAX_ZOOM = 40;
 const DEFAULT_ZOOM = 2;
 
-export function PixelCanvas({ selectedColor, onPixelClick, walletConnected }: PixelCanvasProps) {
+export function PixelCanvas({ 
+  selectedColor, 
+  onPixelClick, 
+  onRectangleSelect,
+  walletConnected,
+  selectionMode = 'single'
+}: PixelCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [zoom, setZoom] = useState(DEFAULT_ZOOM);
@@ -20,6 +28,9 @@ export function PixelCanvas({ selectedColor, onPixelClick, walletConnected }: Pi
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [hoveredPixel, setHoveredPixel] = useState<{ x: number; y: number } | null>(null);
+  const [isSelecting, setIsSelecting] = useState(false);
+  const [selectionStart, setSelectionStart] = useState<{ x: number; y: number } | null>(null);
+  const [selectionEnd, setSelectionEnd] = useState<{ x: number; y: number } | null>(null);
   
   const { pixels, loading, getPixel, getPixelColor } = usePixels();
 
@@ -82,7 +93,7 @@ export function PixelCanvas({ selectedColor, onPixelClick, walletConnected }: Pi
     }
 
     // Draw hovered pixel highlight
-    if (hoveredPixel && walletConnected) {
+    if (hoveredPixel && walletConnected && selectionMode === 'single') {
       const { x, y } = hoveredPixel;
       if (x >= 0 && x < CANVAS_SIZE && y >= 0 && y < CANVAS_SIZE) {
         ctx.strokeStyle = selectedColor;
@@ -107,11 +118,43 @@ export function PixelCanvas({ selectedColor, onPixelClick, walletConnected }: Pi
       }
     }
 
+    // Draw rectangle selection preview
+    if (selectionMode === 'rectangle' && selectionStart && (selectionEnd || hoveredPixel)) {
+      const end = selectionEnd || hoveredPixel;
+      if (end) {
+        const minX = Math.min(selectionStart.x, end.x);
+        const maxX = Math.max(selectionStart.x, end.x);
+        const minY = Math.min(selectionStart.y, end.y);
+        const maxY = Math.max(selectionStart.y, end.y);
+        
+        ctx.fillStyle = selectedColor;
+        ctx.globalAlpha = 0.3;
+        ctx.fillRect(
+          minX * pixelSize + offset.x,
+          minY * pixelSize + offset.y,
+          (maxX - minX + 1) * pixelSize,
+          (maxY - minY + 1) * pixelSize
+        );
+        ctx.globalAlpha = 1;
+        
+        ctx.strokeStyle = selectedColor;
+        ctx.lineWidth = 2;
+        ctx.setLineDash([5, 5]);
+        ctx.strokeRect(
+          minX * pixelSize + offset.x,
+          minY * pixelSize + offset.y,
+          (maxX - minX + 1) * pixelSize,
+          (maxY - minY + 1) * pixelSize
+        );
+        ctx.setLineDash([]);
+      }
+    }
+
     // Draw canvas boundary
     ctx.strokeStyle = 'rgba(168, 85, 247, 0.5)';
     ctx.lineWidth = 2;
     ctx.strokeRect(offset.x, offset.y, CANVAS_SIZE * pixelSize, CANVAS_SIZE * pixelSize);
-  }, [zoom, offset, pixels, hoveredPixel, selectedColor, walletConnected, getPixelColor]);
+  }, [zoom, offset, pixels, hoveredPixel, selectedColor, walletConnected, getPixelColor, selectionMode, selectionStart, selectionEnd]);
 
   // Resize canvas to fit container
   useEffect(() => {
@@ -162,31 +205,54 @@ export function PixelCanvas({ selectedColor, onPixelClick, walletConnected }: Pi
   // Mouse handlers
   const handleMouseDown = (e: React.MouseEvent) => {
     if (e.button === 0) {
+      if (selectionMode === 'rectangle' && walletConnected) {
+        const pixel = screenToPixel(e.clientX, e.clientY);
+        if (pixel) {
+          setIsSelecting(true);
+          setSelectionStart(pixel);
+          setSelectionEnd(null);
+          return;
+        }
+      }
       setIsDragging(true);
       setDragStart({ x: e.clientX - offset.x, y: e.clientY - offset.y });
     }
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
-    if (isDragging) {
+    const pixel = screenToPixel(e.clientX, e.clientY);
+    setHoveredPixel(pixel);
+    
+    if (isSelecting && selectionMode === 'rectangle') {
+      if (pixel) {
+        setSelectionEnd(pixel);
+      }
+    } else if (isDragging) {
       setOffset({
         x: e.clientX - dragStart.x,
         y: e.clientY - dragStart.y,
       });
-    } else {
-      const pixel = screenToPixel(e.clientX, e.clientY);
-      setHoveredPixel(pixel);
     }
   };
 
   const handleMouseUp = (e: React.MouseEvent) => {
+    if (isSelecting && selectionMode === 'rectangle') {
+      setIsSelecting(false);
+      if (selectionStart && selectionEnd && onRectangleSelect) {
+        onRectangleSelect(selectionStart.x, selectionStart.y, selectionEnd.x, selectionEnd.y);
+      }
+      setSelectionStart(null);
+      setSelectionEnd(null);
+      return;
+    }
+    
     if (isDragging) {
       setIsDragging(false);
       // Check if it was a click (not a drag)
       const dx = Math.abs(e.clientX - dragStart.x - offset.x);
       const dy = Math.abs(e.clientY - dragStart.y - offset.y);
       
-      if (dx < 5 && dy < 5) {
+      if (dx < 5 && dy < 5 && selectionMode === 'single') {
         const pixel = screenToPixel(e.clientX, e.clientY);
         if (pixel) {
           const existingPixel = getPixel(pixel.x, pixel.y);
@@ -199,6 +265,11 @@ export function PixelCanvas({ selectedColor, onPixelClick, walletConnected }: Pi
   const handleMouseLeave = () => {
     setIsDragging(false);
     setHoveredPixel(null);
+    if (isSelecting) {
+      setIsSelecting(false);
+      setSelectionStart(null);
+      setSelectionEnd(null);
+    }
   };
 
   const handleWheel = (e: React.WheelEvent) => {
