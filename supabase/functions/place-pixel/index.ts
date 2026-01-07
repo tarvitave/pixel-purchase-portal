@@ -6,7 +6,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const BASE_PRICE_LAMPORTS = 1_000_000; // 0.001 SOL
+const BASE_PRICE_LAMPORTS = 100_000; // 0.0001 SOL
 
 // Solana RPC endpoints
 const SOLANA_RPC_MAINNET = "https://api.mainnet-beta.solana.com";

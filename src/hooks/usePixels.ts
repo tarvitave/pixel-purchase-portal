@@ -19,7 +19,7 @@ export interface PixelMap {
 }
 
 const LAMPORTS_PER_SOL = 1_000_000_000;
-const BASE_PRICE_LAMPORTS = 1_000_000; // 0.001 SOL
+const BASE_PRICE_LAMPORTS = 100_000; // 0.0001 SOL
 
 export function lamportsToSol(lamports: number): number {
   return lamports / LAMPORTS_PER_SOL;
