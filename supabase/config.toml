@@ -1,1 +1,7 @@
 project_id = "rxeptrnpssvonkgrdoif"
+
+[functions.place-pixel]
+verify_jwt = false
+
+[functions.place-pixels-bulk]
+verify_jwt = false
