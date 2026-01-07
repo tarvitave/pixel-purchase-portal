@@ -3,6 +3,7 @@ import { Header } from '@/components/Header';
 import { PixelCanvas } from '@/components/PixelCanvas';
 import { ColorPicker } from '@/components/ColorPicker';
 import { PurchaseModal } from '@/components/PurchaseModal';
+import { Leaderboard } from '@/components/Leaderboard';
 import { usePixels, type Pixel } from '@/hooks/usePixels';
 import { usePhantom } from '@/hooks/usePhantom';
 import { toast } from 'sonner';
@@ -89,6 +90,9 @@ const Index = () => {
               lightning-fast blockchain.
             </p>
           </div>
+
+          {/* Leaderboard */}
+          <Leaderboard />
 
           {/* Canvas stats */}
           <div className="bg-card border border-border rounded-xl p-4">
