@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { usePhantom } from '@/hooks/usePhantom';
-import { useSolanaTransaction, type SolanaNetwork } from '@/hooks/useSolanaTransaction';
+import { useSolanaTransaction } from '@/hooks/useSolanaTransaction';
 import { type Pixel, lamportsToSol, getMinBidLamports, solToLamports } from '@/hooks/usePixels';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -20,7 +20,7 @@ const BASE_PRICE_SOL = 0.0001;
 
 export function PurchaseModal({ open, onClose, x, y, color, existingPixel }: PurchaseModalProps) {
   const { publicKey, connected } = usePhantom();
-  const { sendPayment, loading: txLoading, network, setNetwork } = useSolanaTransaction();
+  const { sendPayment, loading: txLoading, network } = useSolanaTransaction();
   const [loading, setLoading] = useState(false);
   const [bidAmount, setBidAmount] = useState<string>('');
 
@@ -50,7 +50,7 @@ export function PurchaseModal({ open, onClose, x, y, color, existingPixel }: Pur
       // Only send payment if there's a cost (not updating own pixel)
       if (!isOwnPixel) {
         toast.info('Please approve the transaction in Phantom...');
-        transactionSignature = await sendPayment(bidLamports, network);
+        transactionSignature = await sendPayment(bidLamports);
         
         if (!transactionSignature) {
           setLoading(false);
@@ -110,46 +110,13 @@ export function PurchaseModal({ open, onClose, x, y, color, existingPixel }: Pur
         </DialogHeader>
 
         <div className="space-y-4">
-          {/* Network selector */}
+          {/* Network indicator */}
           <div className="flex items-center gap-2">
             <span className="text-xs text-muted-foreground">Network:</span>
-            <div className="flex gap-1">
-              <button
-                onClick={() => setNetwork('devnet')}
-                className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
-                  network === 'devnet' 
-                    ? 'bg-primary text-primary-foreground' 
-                    : 'bg-muted text-muted-foreground hover:bg-muted/80'
-                }`}
-              >
-                Devnet
-              </button>
-              <button
-                onClick={() => setNetwork('mainnet-beta')}
-                className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
-                  network === 'mainnet-beta' 
-                    ? 'bg-primary text-primary-foreground' 
-                    : 'bg-muted text-muted-foreground hover:bg-muted/80'
-                }`}
-              >
-                Mainnet
-              </button>
-            </div>
+            <span className="px-3 py-1 rounded text-xs font-medium bg-accent text-accent-foreground">
+              Solana Mainnet
+            </span>
           </div>
-
-          {network === 'devnet' && (
-            <div className="text-xs text-amber-500 bg-amber-500/10 px-3 py-2 rounded">
-              ⚠️ Using Devnet - Get free SOL from{' '}
-              <a 
-                href="https://faucet.solana.com/" 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="underline hover:text-amber-400"
-              >
-                Solana Faucet
-              </a>
-            </div>
-          )}
 
           {/* Pixel preview */}
           <div className="flex items-center gap-4 p-4 bg-muted rounded-lg">
@@ -253,7 +220,7 @@ export function PurchaseModal({ open, onClose, x, y, color, existingPixel }: Pur
           {/* Transaction info */}
           {!isOwnPixel && connected && (
             <p className="text-xs text-center text-muted-foreground">
-              Real SOL transaction on {network === 'mainnet-beta' ? 'Mainnet' : 'Devnet'}
+              Real SOL transaction on Solana Mainnet
             </p>
           )}
         </div>

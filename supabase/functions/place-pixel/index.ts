@@ -8,9 +8,8 @@ const corsHeaders = {
 
 const BASE_PRICE_LAMPORTS = 100_000; // 0.0001 SOL
 
-// Solana RPC endpoints
-const SOLANA_RPC_MAINNET = "https://api.mainnet-beta.solana.com";
-const SOLANA_RPC_DEVNET = "https://api.devnet.solana.com";
+// Solana RPC endpoint (mainnet only)
+const SOLANA_RPC = "https://api.mainnet-beta.solana.com";
 
 interface PlacePixelRequest {
   x: number;
@@ -19,7 +18,7 @@ interface PlacePixelRequest {
   price_lamports: number;
   wallet: string;
   transaction_signature: string;
-  network: 'mainnet-beta' | 'devnet';
+  network: 'mainnet-beta';
 }
 
 interface SolanaTransaction {
@@ -40,13 +39,10 @@ async function verifyTransaction(
   signature: string,
   expectedSender: string,
   expectedLamports: number,
-  network: 'mainnet-beta' | 'devnet',
   treasuryWallet: string
 ): Promise<{ verified: boolean; error?: string }> {
-  const rpcUrl = network === 'mainnet-beta' ? SOLANA_RPC_MAINNET : SOLANA_RPC_DEVNET;
-
   try {
-    console.log(`Verifying transaction ${signature} on ${network}...`);
+    console.log(`Verifying transaction ${signature} on mainnet...`);
     console.log(`Expected treasury wallet: ${treasuryWallet}`);
     
     let transaction: SolanaTransaction | null = null;
@@ -54,7 +50,7 @@ async function verifyTransaction(
     const maxAttempts = 5;
     
     while (!transaction && attempts < maxAttempts) {
-      const response = await fetch(rpcUrl, {
+      const response = await fetch(SOLANA_RPC, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -164,9 +160,9 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
     
     const body: PlacePixelRequest = await req.json();
-    const { x, y, color, price_lamports, wallet, transaction_signature, network = 'devnet' } = body;
+    const { x, y, color, price_lamports, wallet, transaction_signature } = body;
 
-    console.log('Place pixel request:', { x, y, color, price_lamports, wallet, network, transaction_signature });
+    console.log('Place pixel request:', { x, y, color, price_lamports, wallet, transaction_signature });
 
     // Validate inputs
     if (x < 0 || x >= 1000 || y < 0 || y >= 1000) {
@@ -270,7 +266,6 @@ serve(async (req) => {
         transaction_signature,
         wallet,
         price_lamports,
-        network,
         treasuryWallet
       );
 
