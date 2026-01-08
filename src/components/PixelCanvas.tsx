@@ -187,7 +187,7 @@ export function PixelCanvas({
     draw();
   }, [draw]);
 
-  // Convert screen coordinates to pixel coordinates
+  // Convert screen coordinates to pixel coordinates (returns null if outside the board)
   const screenToPixel = useCallback((screenX: number, screenY: number) => {
     const canvas = canvasRef.current;
     if (!canvas) return null;
@@ -202,32 +202,59 @@ export function PixelCanvas({
     return null;
   }, [offset, zoom]);
 
-  // Mouse handlers
-  const handleMouseDown = (e: React.MouseEvent) => {
-    if (e.button === 0) {
-      if (selectionMode === 'rectangle' && walletConnected) {
-        const pixel = screenToPixel(e.clientX, e.clientY);
-        if (pixel) {
-          setIsSelecting(true);
-          setSelectionStart(pixel);
-          setSelectionEnd(null);
-          return;
-        }
-      }
-      setIsDragging(true);
-      setDragStart({ x: e.clientX - offset.x, y: e.clientY - offset.y });
+  // Like screenToPixel, but clamps to the nearest valid pixel.
+  // This prevents rectangle selections from "failing" when the pointer leaves the board bounds.
+  const screenToPixelClamped = useCallback((screenX: number, screenY: number) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return null;
+
+    const rect = canvas.getBoundingClientRect();
+    const rawX = Math.floor((screenX - rect.left - offset.x) / zoom);
+    const rawY = Math.floor((screenY - rect.top - offset.y) / zoom);
+
+    const x = Math.max(0, Math.min(CANVAS_SIZE - 1, rawX));
+    const y = Math.max(0, Math.min(CANVAS_SIZE - 1, rawY));
+
+    return { x, y };
+  }, [offset, zoom]);
+
+  // Pointer handlers (pointer capture keeps drag/select working even if the pointer leaves the canvas)
+  const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (e.button !== 0) return;
+
+    // Keep receiving move/up events even if the pointer leaves the element
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      // no-op (some environments may throw)
     }
+
+    if (selectionMode === 'rectangle') {
+      const pixel = screenToPixel(e.clientX, e.clientY);
+      if (pixel) {
+        setIsSelecting(true);
+        setSelectionStart(pixel);
+        setSelectionEnd(pixel); // ensure we always have a valid end pixel
+        setIsDragging(false);
+        return;
+      }
+    }
+
+    setIsDragging(true);
+    setDragStart({ x: e.clientX - offset.x, y: e.clientY - offset.y });
   };
 
-  const handleMouseMove = (e: React.MouseEvent) => {
+  const handlePointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const pixel = screenToPixel(e.clientX, e.clientY);
     setHoveredPixel(pixel);
-    
+
     if (isSelecting && selectionMode === 'rectangle') {
-      if (pixel) {
-        setSelectionEnd(pixel);
-      }
-    } else if (isDragging) {
+      const endPixel = screenToPixelClamped(e.clientX, e.clientY);
+      if (endPixel) setSelectionEnd(endPixel);
+      return;
+    }
+
+    if (isDragging) {
       setOffset({
         x: e.clientX - dragStart.x,
         y: e.clientY - dragStart.y,
@@ -235,47 +262,56 @@ export function PixelCanvas({
     }
   };
 
-  const handleMouseUp = (e: React.MouseEvent) => {
+  const handlePointerUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch {
+      // no-op
+    }
+
     if (isSelecting && selectionMode === 'rectangle') {
       setIsSelecting(false);
-      const endPixel = selectionEnd || screenToPixel(e.clientX, e.clientY);
+      const endPixel = selectionEnd || screenToPixelClamped(e.clientX, e.clientY);
+
       if (selectionStart && endPixel && onRectangleSelect) {
         onRectangleSelect(selectionStart.x, selectionStart.y, endPixel.x, endPixel.y);
       }
+
       setSelectionStart(null);
       setSelectionEnd(null);
       return;
     }
-    
+
     if (isDragging) {
       setIsDragging(false);
       // Check if it was a click (not a drag)
       const dx = Math.abs(e.clientX - dragStart.x - offset.x);
       const dy = Math.abs(e.clientY - dragStart.y - offset.y);
-      
+
       if (dx < 5 && dy < 5 && selectionMode === 'single') {
-        const pixel = screenToPixel(e.clientX, e.clientY);
-        if (pixel) {
-          const existingPixel = getPixel(pixel.x, pixel.y);
+        const clicked = screenToPixel(e.clientX, e.clientY);
+        if (clicked) {
+          const existingPixel = getPixel(clicked.x, clicked.y);
           // If pixel has a link, open it instead of showing purchase modal
           if (existingPixel?.link_url) {
             window.open(existingPixel.link_url, '_blank', 'noopener,noreferrer');
             return;
           }
-          onPixelClick(pixel.x, pixel.y, existingPixel);
+          onPixelClick(clicked.x, clicked.y, existingPixel);
         }
       }
     }
   };
 
-  const handleMouseLeave = () => {
+  const handlePointerCancel = () => {
     setIsDragging(false);
+    setIsSelecting(false);
+    setSelectionStart(null);
+    setSelectionEnd(null);
+  };
+
+  const handlePointerLeave = () => {
     setHoveredPixel(null);
-    if (isSelecting) {
-      setIsSelecting(false);
-      setSelectionStart(null);
-      setSelectionEnd(null);
-    }
   };
 
   const handleWheel = (e: React.WheelEvent) => {
@@ -309,12 +345,13 @@ export function PixelCanvas({
     >
       <canvas
         ref={canvasRef}
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseLeave}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerCancel}
+        onPointerLeave={handlePointerLeave}
         onWheel={handleWheel}
-        className={isDragging ? 'cursor-grabbing' : 'cursor-crosshair'}
+        className={(isDragging ? 'cursor-grabbing' : 'cursor-crosshair') + ' touch-none select-none'}
       />
       
       {/* Loading overlay */}
