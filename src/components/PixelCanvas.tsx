@@ -13,6 +13,7 @@ const CANVAS_SIZE = 1000;
 const MIN_ZOOM = 0.5;
 const MAX_ZOOM = 40;
 const DEFAULT_ZOOM = 2;
+const MINIMAP_SIZE = 150;
 
 export function PixelCanvas({ 
   selectedColor, 
@@ -23,6 +24,7 @@ export function PixelCanvas({
 }: PixelCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const minimapRef = useRef<HTMLCanvasElement>(null);
   const [zoom, setZoom] = useState(DEFAULT_ZOOM);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
@@ -31,6 +33,7 @@ export function PixelCanvas({
   const [isSelecting, setIsSelecting] = useState(false);
   const [selectionStart, setSelectionStart] = useState<{ x: number; y: number } | null>(null);
   const [selectionEnd, setSelectionEnd] = useState<{ x: number; y: number } | null>(null);
+  const [minimapExpanded, setMinimapExpanded] = useState(true);
   
   const { pixels, loading, getPixel, getPixelColor } = usePixels();
 
@@ -156,6 +159,55 @@ export function PixelCanvas({
     ctx.strokeRect(offset.x, offset.y, CANVAS_SIZE * pixelSize, CANVAS_SIZE * pixelSize);
   }, [zoom, offset, pixels, hoveredPixel, selectedColor, walletConnected, getPixelColor, selectionMode, selectionStart, selectionEnd]);
 
+  // Draw the minimap
+  const drawMinimap = useCallback(() => {
+    const minimap = minimapRef.current;
+    const mainCanvas = canvasRef.current;
+    if (!minimap || !mainCanvas) return;
+
+    const ctx = minimap.getContext('2d');
+    if (!ctx) return;
+
+    const scale = MINIMAP_SIZE / CANVAS_SIZE;
+
+    // Clear minimap with dark background
+    ctx.fillStyle = '#1a1a2e';
+    ctx.fillRect(0, 0, MINIMAP_SIZE, MINIMAP_SIZE);
+
+    // Draw all pixels on minimap
+    Object.values(pixels).forEach((pixel) => {
+      ctx.fillStyle = pixel.color;
+      // Draw each pixel as at least 1px on minimap, slightly larger for visibility
+      const size = Math.max(1, scale);
+      ctx.fillRect(
+        Math.floor(pixel.x * scale),
+        Math.floor(pixel.y * scale),
+        size,
+        size
+      );
+    });
+
+    // Draw viewport rectangle
+    const viewportX = -offset.x / zoom;
+    const viewportY = -offset.y / zoom;
+    const viewportWidth = mainCanvas.width / zoom;
+    const viewportHeight = mainCanvas.height / zoom;
+
+    ctx.strokeStyle = '#a855f7';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(
+      viewportX * scale,
+      viewportY * scale,
+      viewportWidth * scale,
+      viewportHeight * scale
+    );
+
+    // Draw canvas boundary
+    ctx.strokeStyle = 'rgba(168, 85, 247, 0.3)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(0, 0, MINIMAP_SIZE, MINIMAP_SIZE);
+  }, [pixels, offset, zoom]);
+
   // Resize canvas to fit container
   useEffect(() => {
     const handleResize = () => {
@@ -185,7 +237,8 @@ export function PixelCanvas({
   // Redraw when dependencies change
   useEffect(() => {
     draw();
-  }, [draw]);
+    drawMinimap();
+  }, [draw, drawMinimap]);
 
   // Convert screen coordinates to pixel coordinates (returns null if outside the board)
   const screenToPixel = useCallback((screenX: number, screenY: number) => {
@@ -460,6 +513,49 @@ export function PixelCanvas({
       <div className="absolute bottom-4 left-4 bg-card/80 backdrop-blur-sm border border-border rounded-lg px-3 py-1.5">
         <span className="text-xs text-muted-foreground">Zoom: </span>
         <span className="text-sm font-mono">{zoom.toFixed(1)}x</span>
+      </div>
+
+      {/* Minimap */}
+      <div className="absolute top-4 right-4 flex flex-col items-end gap-2">
+        <button
+          onClick={() => setMinimapExpanded(!minimapExpanded)}
+          className="bg-card/90 backdrop-blur-sm border border-border rounded-lg px-2 py-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+        >
+          {minimapExpanded ? '▼ Hide Map' : '▶ Show Map'}
+        </button>
+        {minimapExpanded && (
+          <div 
+            className="bg-card/90 backdrop-blur-sm border border-border rounded-lg p-2 cursor-pointer"
+            onClick={(e) => {
+              const rect = e.currentTarget.getBoundingClientRect();
+              const clickX = e.clientX - rect.left - 8; // account for padding
+              const clickY = e.clientY - rect.top - 8;
+              
+              const scale = MINIMAP_SIZE / CANVAS_SIZE;
+              const targetX = clickX / scale;
+              const targetY = clickY / scale;
+              
+              const canvas = canvasRef.current;
+              if (canvas) {
+                setOffset({
+                  x: canvas.width / 2 - targetX * zoom,
+                  y: canvas.height / 2 - targetY * zoom,
+                });
+              }
+            }}
+          >
+            <canvas
+              ref={minimapRef}
+              width={MINIMAP_SIZE}
+              height={MINIMAP_SIZE}
+              className="rounded"
+              style={{ imageRendering: 'pixelated' }}
+            />
+            <div className="text-xs text-muted-foreground text-center mt-1">
+              Click to navigate
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
