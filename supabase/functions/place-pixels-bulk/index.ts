@@ -237,12 +237,18 @@ serve(async (req) => {
       existingMap.set(`${p.x},${p.y}`, { price_lamports: p.price_lamports, owner_wallet: p.owner_wallet, color: p.color, batch_id: p.batch_id });
     });
 
-    // Calculate required price - base for new, current + base for owned
+    // Calculate required price - base for new, current + base for outbidding others
+    // Own pixels are FREE to update
     let requiredPrice = 0;
     for (const pixel of pixels) {
       const existing = existingMap.get(`${pixel.x},${pixel.y}`);
       if (existing && existing.owner_wallet) {
-        // Outbid: current price + base price (0.0001 SOL)
+        // Check if this pixel is owned by the current wallet
+        if (existing.owner_wallet === wallet) {
+          // Own pixel - FREE to update, no charge
+          continue;
+        }
+        // Someone else's pixel - need to outbid: current price + base price (0.0001 SOL)
         requiredPrice += existing.price_lamports + BASE_PRICE_LAMPORTS;
       } else {
         // New pixel: base price
@@ -252,72 +258,75 @@ serve(async (req) => {
 
     console.log(`Required price: ${requiredPrice} lamports, provided: ${price_lamports} lamports`);
 
-    if (price_lamports < requiredPrice) {
-      return new Response(
-        JSON.stringify({ 
-          error: `Insufficient payment. Required: ${requiredPrice} lamports for ${pixels.length} pixels (includes outbid premiums)`,
-          required_price: requiredPrice 
-        }),
-        { 
-          status: 402,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-        }
+    // Only require payment if there's a cost
+    if (requiredPrice > 0) {
+      if (price_lamports < requiredPrice) {
+        return new Response(
+          JSON.stringify({ 
+            error: `Insufficient payment. Required: ${requiredPrice} lamports for ${pixels.length} pixels (includes outbid premiums)`,
+            required_price: requiredPrice 
+          }),
+          { 
+            status: 402,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+          }
+        );
+      }
+
+      if (!transaction_signature) {
+        return new Response(
+          JSON.stringify({ error: 'Transaction signature required' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Check if transaction signature already used
+      const { data: existingTx } = await supabase
+        .from('pixels')
+        .select('id')
+        .eq('transaction_signature', transaction_signature)
+        .limit(1);
+
+      if (existingTx && existingTx.length > 0) {
+        return new Response(
+          JSON.stringify({ error: 'Transaction signature already used' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Get treasury wallet from environment
+      const treasuryWallet = Deno.env.get('TREASURY_WALLET_ADDRESS');
+      if (!treasuryWallet) {
+        console.error('TREASURY_WALLET_ADDRESS not configured');
+        return new Response(
+          JSON.stringify({ error: 'Server configuration error' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Prevent user from paying to themselves (treasury cannot purchase pixels)
+      if (wallet === treasuryWallet) {
+        return new Response(
+          JSON.stringify({ error: 'Treasury wallet cannot purchase pixels. Please use a different wallet.' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Verify the Solana transaction
+      const verification = await verifyTransaction(
+        transaction_signature,
+        wallet,
+        price_lamports,
+        treasuryWallet
       );
-    }
 
-    if (!transaction_signature) {
-      return new Response(
-        JSON.stringify({ error: 'Transaction signature required' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Check if transaction signature already used
-    const { data: existingTx } = await supabase
-      .from('pixels')
-      .select('id')
-      .eq('transaction_signature', transaction_signature)
-      .limit(1);
-
-    if (existingTx && existingTx.length > 0) {
-      return new Response(
-        JSON.stringify({ error: 'Transaction signature already used' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Get treasury wallet from environment
-    const treasuryWallet = Deno.env.get('TREASURY_WALLET_ADDRESS');
-    if (!treasuryWallet) {
-      console.error('TREASURY_WALLET_ADDRESS not configured');
-      return new Response(
-        JSON.stringify({ error: 'Server configuration error' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Prevent user from paying to themselves (treasury cannot purchase pixels)
-    if (wallet === treasuryWallet) {
-      return new Response(
-        JSON.stringify({ error: 'Treasury wallet cannot purchase pixels. Please use a different wallet.' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Verify the Solana transaction
-    const verification = await verifyTransaction(
-      transaction_signature,
-      wallet,
-      price_lamports,
-      treasuryWallet
-    );
-
-    if (!verification.verified) {
-      console.error('Transaction verification failed:', verification.error);
-      return new Response(
-        JSON.stringify({ error: verification.error || 'Transaction verification failed' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      if (!verification.verified) {
+        console.error('Transaction verification failed:', verification.error);
+        return new Response(
+          JSON.stringify({ error: verification.error || 'Transaction verification failed' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
     }
 
     // Generate a unique batch_id for this purchase to group all pixels together
