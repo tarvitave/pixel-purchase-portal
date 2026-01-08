@@ -427,15 +427,15 @@ export function PixelCanvas({
       <div className="absolute bottom-4 right-4 flex flex-col gap-2">
         <button
           onClick={() => setZoom(Math.min(MAX_ZOOM, zoom * 1.5))}
-          className="w-10 h-10 bg-card border border-border rounded-lg flex items-center justify-center text-foreground hover:bg-muted transition-colors"
+          className="w-10 h-10 bg-card border border-border rounded-lg flex items-center justify-center text-foreground hover:bg-muted transition-colors text-lg font-bold"
         >
           +
         </button>
         <button
           onClick={() => setZoom(Math.max(MIN_ZOOM, zoom / 1.5))}
-          className="w-10 h-10 bg-card border border-border rounded-lg flex items-center justify-center text-foreground hover:bg-muted transition-colors"
+          className="w-10 h-10 bg-card border border-border rounded-lg flex items-center justify-center text-foreground hover:bg-muted transition-colors text-lg font-bold"
         >
-          −
+          -
         </button>
         <button
           onClick={() => {
