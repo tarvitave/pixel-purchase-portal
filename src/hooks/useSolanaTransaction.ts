@@ -186,12 +186,18 @@ export function useSolanaTransaction(): UseSolanaTransactionReturn {
     } catch (error) {
       console.error('Transaction error:', error);
       
-      if (error instanceof Error) {
-        if (error.message.includes('User rejected')) {
-          toast.error('Transaction cancelled by user');
-        } else {
-          toast.error(`Transaction error: ${error.message}`);
-        }
+      const err = error as { message?: string; code?: number };
+      const message = err.message || '';
+      const code = err.code;
+      
+      if (message.includes('User rejected')) {
+        toast.error('Transaction cancelled by user');
+      } else if (code === -32603 || message.includes('Unexpected error')) {
+        toast.error('Transaction failed: Your wallet may have insufficient SOL for this transaction plus fees. Please check your balance.');
+      } else if (message.includes('insufficient')) {
+        toast.error('Insufficient balance for this transaction');
+      } else if (message) {
+        toast.error(`Transaction error: ${message}`);
       } else {
         toast.error('Failed to send transaction');
       }
