@@ -161,12 +161,14 @@ export function BulkPurchaseModal({
   }, [open, selMinX, selMaxX, selMinY, selMaxY]);
 
   // Calculate total cost for the entire rectangle (expanded bounds)
+  // Own pixels are FREE to update - only charge for new pixels and outbidding others
   const { 
     totalCost, 
     newPixelCount, 
     outbidPixelCount, 
     outbidCost, 
     newCost, 
+    ownPixelCount,
     affectedBatches,
   } = (() => {
     const existingMap = new Map<string, ExistingPixel>();
@@ -174,6 +176,7 @@ export function BulkPurchaseModal({
     
     let newCount = 0;
     let outbidCount = 0;
+    let ownCount = 0;
     let totalNewCost = 0;
     let totalOutbidCost = 0;
     const batchIds = new Set<string>();
@@ -183,9 +186,16 @@ export function BulkPurchaseModal({
       for (let x = minX; x <= maxX; x++) {
         const existing = existingMap.get(`${x},${y}`);
         if (existing && existing.owner_wallet) {
-          outbidCount++;
-          totalOutbidCost += existing.price_lamports + BASE_PRICE_LAMPORTS;
-          if (existing.batch_id) batchIds.add(existing.batch_id);
+          // Check if this pixel is owned by the current user
+          if (existing.owner_wallet === publicKey) {
+            // Own pixel - FREE to update
+            ownCount++;
+          } else {
+            // Someone else's pixel - need to outbid
+            outbidCount++;
+            totalOutbidCost += existing.price_lamports + BASE_PRICE_LAMPORTS;
+            if (existing.batch_id) batchIds.add(existing.batch_id);
+          }
         } else {
           newCount++;
           totalNewCost += BASE_PRICE_LAMPORTS;
@@ -199,6 +209,7 @@ export function BulkPurchaseModal({
       outbidPixelCount: outbidCount,
       outbidCost: totalOutbidCost,
       newCost: totalNewCost,
+      ownPixelCount: ownCount,
       affectedBatches: batchIds.size,
     };
   })();
@@ -297,15 +308,22 @@ export function BulkPurchaseModal({
     setLoading(true);
 
     try {
-      toast.info('Please approve the transaction in Phantom...');
-      const transactionSignature = await sendPayment(totalCost);
-      
-      if (!transactionSignature) {
-        setLoading(false);
-        return;
-      }
+      let transactionSignature: string | null = null;
 
-      toast.success('Payment confirmed! Placing pixels...');
+      // Only require payment if there's a cost (not just updating own pixels)
+      if (totalCost > 0) {
+        toast.info('Please approve the transaction in Phantom...');
+        transactionSignature = await sendPayment(totalCost);
+        
+        if (!transactionSignature) {
+          setLoading(false);
+          return;
+        }
+
+        toast.success('Payment confirmed! Placing pixels...');
+      } else {
+        toast.info('Updating your pixels...');
+      }
 
       // Build pixels array from entire rectangle (expanded bounds)
       const pixels: Array<{ x: number; y: number; color: string }> = [];
@@ -520,6 +538,16 @@ export function BulkPurchaseModal({
               </div>
             ) : (
               <>
+                {ownPixelCount > 0 && (
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-muted-foreground">
+                      {ownPixelCount} owned pixel{ownPixelCount > 1 ? 's' : ''} (free update)
+                    </span>
+                    <span className="font-mono text-accent">
+                      0.0000 SOL
+                    </span>
+                  </div>
+                )}
                 {newPixelCount > 0 && (
                   <div className="flex justify-between items-center text-sm">
                     <span className="text-muted-foreground">
@@ -570,8 +598,10 @@ export function BulkPurchaseModal({
                   <div className="w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin mr-2" />
                   {txLoading ? 'Sending...' : 'Placing...'}
                 </>
+              ) : totalCost === 0 ? (
+                `Update ${pixelCount} Pixels`
               ) : (
-                `Purchase ${pixelCount} Pixels`
+                `Pay ${lamportsToSol(totalCost).toFixed(4)} SOL`
               )}
             </Button>
           </div>
