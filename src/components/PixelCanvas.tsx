@@ -551,11 +551,11 @@ export function PixelCanvas({
               )}
               <div className="text-xs text-muted-foreground mb-1">Current price</div>
               <div className="text-sm text-primary font-bold">
-                {lamportsToSol(hoveredPixelData.price_lamports).toFixed(4)} SOL
+                {lamportsToSol(hoveredPixelData.price_lamports).toFixed(5)} SOL
               </div>
               <div className="text-xs text-muted-foreground mt-2">Min bid to own</div>
               <div className="text-sm text-accent font-bold">
-                {lamportsToSol(getMinBidLamports(hoveredPixelData.price_lamports)).toFixed(4)} SOL
+                {lamportsToSol(getMinBidLamports(hoveredPixelData.price_lamports)).toFixed(5)} SOL
               </div>
             </>
           ) : (
