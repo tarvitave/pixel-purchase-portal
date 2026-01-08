@@ -237,13 +237,13 @@ serve(async (req) => {
       existingMap.set(`${p.x},${p.y}`, { price_lamports: p.price_lamports, owner_wallet: p.owner_wallet });
     });
 
-    // Calculate required price - base for new, 10% more for owned
+    // Calculate required price - base for new, current + base for owned
     let requiredPrice = 0;
     for (const pixel of pixels) {
       const existing = existingMap.get(`${pixel.x},${pixel.y}`);
       if (existing && existing.owner_wallet) {
-        // Outbid: 10% more than current price
-        requiredPrice += Math.floor(existing.price_lamports * 1.1);
+        // Outbid: current price + base price (0.0001 SOL)
+        requiredPrice += existing.price_lamports + BASE_PRICE_LAMPORTS;
       } else {
         // New pixel: base price
         requiredPrice += BASE_PRICE_LAMPORTS;
@@ -319,7 +319,7 @@ serve(async (req) => {
     const pixelData = pixels.map((pixel, index) => {
       const existing = existingMap.get(`${pixel.x},${pixel.y}`);
       const pixelPrice = existing && existing.owner_wallet
-        ? Math.floor(existing.price_lamports * 1.1)
+        ? existing.price_lamports + BASE_PRICE_LAMPORTS
         : BASE_PRICE_LAMPORTS;
       
       return {
