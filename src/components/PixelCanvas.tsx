@@ -238,8 +238,9 @@ export function PixelCanvas({
   const handleMouseUp = (e: React.MouseEvent) => {
     if (isSelecting && selectionMode === 'rectangle') {
       setIsSelecting(false);
-      if (selectionStart && selectionEnd && onRectangleSelect) {
-        onRectangleSelect(selectionStart.x, selectionStart.y, selectionEnd.x, selectionEnd.y);
+      const endPixel = selectionEnd || screenToPixel(e.clientX, e.clientY);
+      if (selectionStart && endPixel && onRectangleSelect) {
+        onRectangleSelect(selectionStart.x, selectionStart.y, endPixel.x, endPixel.y);
       }
       setSelectionStart(null);
       setSelectionEnd(null);
