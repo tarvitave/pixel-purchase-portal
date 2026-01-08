@@ -28,6 +28,7 @@ interface PlacePixelsBulkRequest {
   transaction_signature: string;
   network: 'mainnet-beta';
   link_url?: string | null;
+  include_batch_pixels?: boolean;
 }
 
 interface SolanaTransaction {
@@ -216,11 +217,10 @@ serve(async (req) => {
       );
     }
 
-    // Fetch existing pixels to calculate required outbid prices
-    const pixelCoords = pixels.map(p => `(${p.x},${p.y})`);
+    // Fetch existing pixels to calculate required outbid prices (include color and batch_id)
     const { data: existingPixels, error: fetchError } = await supabase
       .from('pixels')
-      .select('x, y, price_lamports, owner_wallet')
+      .select('x, y, price_lamports, owner_wallet, color, batch_id')
       .or(pixels.map(p => `and(x.eq.${p.x},y.eq.${p.y})`).join(','));
 
     if (fetchError) {
@@ -232,9 +232,9 @@ serve(async (req) => {
     }
 
     // Build map of existing pixels
-    const existingMap = new Map<string, { price_lamports: number; owner_wallet: string | null }>();
+    const existingMap = new Map<string, { price_lamports: number; owner_wallet: string | null; color: string; batch_id: string | null }>();
     (existingPixels || []).forEach(p => {
-      existingMap.set(`${p.x},${p.y}`, { price_lamports: p.price_lamports, owner_wallet: p.owner_wallet });
+      existingMap.set(`${p.x},${p.y}`, { price_lamports: p.price_lamports, owner_wallet: p.owner_wallet, color: p.color, batch_id: p.batch_id });
     });
 
     // Calculate required price - base for new, current + base for owned
@@ -322,10 +322,15 @@ serve(async (req) => {
         ? existing.price_lamports + BASE_PRICE_LAMPORTS
         : BASE_PRICE_LAMPORTS;
       
+      // For batch pixels being taken over, keep their existing color if placeholder was sent
+      const finalColor = (pixel.color === '#000000' && existing?.color) 
+        ? existing.color 
+        : pixel.color;
+      
       return {
         x: pixel.x,
         y: pixel.y,
-        color: pixel.color,
+        color: finalColor,
         owner_wallet: wallet,
         price_lamports: pixelPrice,
         // Only first pixel gets the transaction signature for tracking
