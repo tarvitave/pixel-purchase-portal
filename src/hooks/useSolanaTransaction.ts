@@ -8,8 +8,8 @@ import {
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 
-// Mainnet RPC endpoint
-const RPC_ENDPOINT = 'https://api.mainnet-beta.solana.com';
+// Mainnet RPC endpoint - will be fetched from edge function
+const DEFAULT_RPC_ENDPOINT = 'https://api.mainnet-beta.solana.com';
 
 export type SolanaNetwork = 'mainnet-beta';
 
@@ -64,7 +64,7 @@ export function useSolanaTransaction(): UseSolanaTransactionReturn {
     setLoading(true);
 
     try {
-      const connection = new Connection(RPC_ENDPOINT, 'confirmed');
+      const connection = new Connection(DEFAULT_RPC_ENDPOINT, 'confirmed');
       
       // Get the public key as a proper PublicKey object
       const fromPubkey = new PublicKey(provider.publicKey.toString());
