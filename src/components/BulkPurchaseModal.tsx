@@ -26,11 +26,6 @@ interface ExistingPixel {
   batch_id: string | null;
 }
 
-interface BatchInfo {
-  batch_id: string;
-  pixels: ExistingPixel[];
-  totalOutbidCost: number;
-}
 
 const BASE_PRICE_LAMPORTS = 100_000; // 0.0001 SOL per pixel
 
@@ -55,18 +50,37 @@ export function BulkPurchaseModal({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const minX = Math.min(startX, endX);
-  const maxX = Math.max(startX, endX);
-  const minY = Math.min(startY, endY);
-  const maxY = Math.max(startY, endY);
+  // Original selection bounds
+  const selMinX = Math.min(startX, endX);
+  const selMaxX = Math.max(startX, endX);
+  const selMinY = Math.min(startY, endY);
+  const selMaxY = Math.max(startY, endY);
+
+  // State for expanded bounds (after considering batch pixels)
+  const [expandedBounds, setExpandedBounds] = useState({ 
+    minX: selMinX, maxX: selMaxX, minY: selMinY, maxY: selMaxY 
+  });
+
+  // Final bounds (may be expanded to form rectangle)
+  const minX = expandedBounds.minX;
+  const maxX = expandedBounds.maxX;
+  const minY = expandedBounds.minY;
+  const maxY = expandedBounds.maxY;
   
   const width = maxX - minX + 1;
   const height = maxY - minY + 1;
   const pixelCount = width * height;
 
+  // Track if area was expanded
+  const wasExpanded = minX !== selMinX || maxX !== selMaxX || minY !== selMinY || maxY !== selMaxY;
+
   // Fetch existing pixels in the selection area AND full batches if overlapping
+  // Then calculate expanded bounding box to form a rectangle
   useEffect(() => {
     if (!open) return;
+    
+    // Reset expanded bounds when modal opens
+    setExpandedBounds({ minX: selMinX, maxX: selMaxX, minY: selMinY, maxY: selMaxY });
     
     const fetchExistingPixels = async () => {
       setLoadingPrices(true);
@@ -75,10 +89,10 @@ export function BulkPurchaseModal({
         const { data: selectionPixels, error } = await supabase
           .from('pixels')
           .select('x, y, price_lamports, owner_wallet, batch_id')
-          .gte('x', minX)
-          .lte('x', maxX)
-          .gte('y', minY)
-          .lte('y', maxY);
+          .gte('x', selMinX)
+          .lte('x', selMaxX)
+          .gte('y', selMinY)
+          .lte('y', selMaxY);
         
         if (error) throw error;
         
@@ -103,6 +117,35 @@ export function BulkPurchaseModal({
           allPixels.forEach(p => pixelMap.set(`${p.x},${p.y}`, p));
           (batchPixels || []).forEach(p => pixelMap.set(`${p.x},${p.y}`, p));
           allPixels = Array.from(pixelMap.values());
+          
+          // Calculate expanded bounding box to ensure rectangle
+          let newMinX = selMinX, newMaxX = selMaxX, newMinY = selMinY, newMaxY = selMaxY;
+          allPixels.forEach(p => {
+            newMinX = Math.min(newMinX, p.x);
+            newMaxX = Math.max(newMaxX, p.x);
+            newMinY = Math.min(newMinY, p.y);
+            newMaxY = Math.max(newMaxY, p.y);
+          });
+          
+          // Update expanded bounds
+          setExpandedBounds({ minX: newMinX, maxX: newMaxX, minY: newMinY, maxY: newMaxY });
+          
+          // Now fetch ALL pixels in the expanded area (for correct pricing)
+          if (newMinX !== selMinX || newMaxX !== selMaxX || newMinY !== selMinY || newMaxY !== selMaxY) {
+            const { data: expandedPixels, error: expandedError } = await supabase
+              .from('pixels')
+              .select('x, y, price_lamports, owner_wallet, batch_id')
+              .gte('x', newMinX)
+              .lte('x', newMaxX)
+              .gte('y', newMinY)
+              .lte('y', newMaxY);
+            
+            if (expandedError) throw expandedError;
+            
+            // Merge all pixels
+            (expandedPixels || []).forEach(p => pixelMap.set(`${p.x},${p.y}`, p));
+            allPixels = Array.from(pixelMap.values());
+          }
         }
         
         setExistingPixels(allPixels);
@@ -115,69 +158,34 @@ export function BulkPurchaseModal({
     };
     
     fetchExistingPixels();
-  }, [open, minX, maxX, minY, maxY]);
+  }, [open, selMinX, selMaxX, selMinY, selMaxY]);
 
-  // Calculate total cost considering existing pixels AND full batches
+  // Calculate total cost for the entire rectangle (expanded bounds)
   const { 
     totalCost, 
     newPixelCount, 
-    outbidPixelCountInSelection, 
-    outbidCostInSelection, 
+    outbidPixelCount, 
+    outbidCost, 
     newCost, 
-    batchPixelsToInclude,
-    batchPixelsCost,
     affectedBatches,
-    totalBatchSize,
   } = (() => {
     const existingMap = new Map<string, ExistingPixel>();
     existingPixels.forEach(p => existingMap.set(`${p.x},${p.y}`, p));
     
-    // Find pixels in selection area
-    const selectionKeys = new Set<string>();
-    for (let y = minY; y <= maxY; y++) {
-      for (let x = minX; x <= maxX; x++) {
-        selectionKeys.add(`${x},${y}`);
-      }
-    }
-    
-    // Find batch_ids that overlap with selection and count total batch pixels
-    const overlappingBatchIds = new Set<string>();
-    let batchPixelsInSelection = 0;
-    selectionKeys.forEach(key => {
-      const existing = existingMap.get(key);
-      if (existing?.batch_id && existing.owner_wallet) {
-        overlappingBatchIds.add(existing.batch_id);
-        batchPixelsInSelection++;
-      }
-    });
-    
-    // Get all pixels from overlapping batches (including those outside selection)
-    const batchPixels: ExistingPixel[] = [];
-    let batchPixelsTotalCost = 0;
-    existingPixels.forEach(p => {
-      if (p.batch_id && overlappingBatchIds.has(p.batch_id) && !selectionKeys.has(`${p.x},${p.y}`)) {
-        batchPixels.push(p);
-        if (p.owner_wallet) {
-          batchPixelsTotalCost += p.price_lamports + BASE_PRICE_LAMPORTS;
-        }
-      }
-    });
-    
-    // Total batch size = pixels in selection + pixels outside selection
-    const totalBatchPixels = batchPixelsInSelection + batchPixels.length;
-    
     let newCount = 0;
-    let outbidCountInSel = 0;
+    let outbidCount = 0;
     let totalNewCost = 0;
-    let totalOutbidCostInSel = 0;
+    let totalOutbidCost = 0;
+    const batchIds = new Set<string>();
     
-    // Calculate cost for selection area
+    // Calculate cost for entire rectangle (expanded bounds)
     for (let y = minY; y <= maxY; y++) {
       for (let x = minX; x <= maxX; x++) {
         const existing = existingMap.get(`${x},${y}`);
         if (existing && existing.owner_wallet) {
-          outbidCountInSel++;
-          totalOutbidCostInSel += existing.price_lamports + BASE_PRICE_LAMPORTS;
+          outbidCount++;
+          totalOutbidCost += existing.price_lamports + BASE_PRICE_LAMPORTS;
+          if (existing.batch_id) batchIds.add(existing.batch_id);
         } else {
           newCount++;
           totalNewCost += BASE_PRICE_LAMPORTS;
@@ -186,20 +194,17 @@ export function BulkPurchaseModal({
     }
     
     return {
-      totalCost: totalNewCost + totalOutbidCostInSel + batchPixelsTotalCost,
+      totalCost: totalNewCost + totalOutbidCost,
       newPixelCount: newCount,
-      outbidPixelCountInSelection: outbidCountInSel,
-      outbidCostInSelection: totalOutbidCostInSel,
+      outbidPixelCount: outbidCount,
+      outbidCost: totalOutbidCost,
       newCost: totalNewCost,
-      batchPixelsToInclude: batchPixels,
-      batchPixelsCost: batchPixelsTotalCost,
-      affectedBatches: overlappingBatchIds.size,
-      totalBatchSize: totalBatchPixels,
+      affectedBatches: batchIds.size,
     };
   })();
 
-  // Total pixels to purchase (selection + batch pixels outside selection)
-  const totalPixelsToPurchase = pixelCount + batchPixelsToInclude.length;
+  // Total pixels to purchase (entire rectangle)
+  const totalPixelsToPurchase = pixelCount;
 
   const extractColorsFromImage = (imageSrc: string) => {
     const img = new Image();
@@ -302,26 +307,17 @@ export function BulkPurchaseModal({
 
       toast.success('Payment confirmed! Placing pixels...');
 
-      // Build pixels array from selection
+      // Build pixels array from entire rectangle (expanded bounds)
       const pixels: Array<{ x: number; y: number; color: string }> = [];
       for (let y = 0; y < height; y++) {
         for (let x = 0; x < width; x++) {
           pixels.push({
             x: minX + x,
             y: minY + y,
-            color: extractedColors[y][x],
+            color: extractedColors[y]?.[x] || '#000000',
           });
         }
       }
-
-      // Add batch pixels that are outside the selection (keep their existing color)
-      batchPixelsToInclude.forEach(p => {
-        pixels.push({
-          x: p.x,
-          y: p.y,
-          color: '#000000', // Placeholder - backend will keep existing color for these
-        });
-      });
 
       // Call the edge function for bulk placement
       const { data, error } = await supabase.functions.invoke('place-pixels-bulk', {
@@ -332,7 +328,6 @@ export function BulkPurchaseModal({
           transaction_signature: transactionSignature,
           network: 'mainnet-beta',
           link_url: linkUrl || null,
-          include_batch_pixels: batchPixelsToInclude.length > 0,
         },
       });
 
@@ -380,14 +375,21 @@ export function BulkPurchaseModal({
             </span>
           </div>
 
-          {/* Selection info */}
+          {/* Selection/Rectangle info */}
           <div className="p-4 bg-muted rounded-lg">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <div className="text-xs text-muted-foreground">Selection</div>
+                <div className="text-xs text-muted-foreground">
+                  {wasExpanded ? 'Expanded Rectangle' : 'Selection'}
+                </div>
                 <div className="font-mono text-sm text-foreground">
                   ({minX}, {minY}) → ({maxX}, {maxY})
                 </div>
+                {wasExpanded && (
+                  <div className="text-xs text-orange-400 mt-1">
+                    Original: ({selMinX}, {selMinY}) → ({selMaxX}, {selMaxY})
+                  </div>
+                )}
               </div>
               <div>
                 <div className="text-xs text-muted-foreground">Size</div>
@@ -476,32 +478,31 @@ export function BulkPurchaseModal({
             </div>
           )}
 
-          {/* Batch warning */}
-          {batchPixelsToInclude.length > 0 && (
+          {/* Expanded area warning */}
+          {wasExpanded && (
             <div className="p-4 bg-orange-500/20 rounded-lg border border-orange-500/50">
               <div className="flex items-start gap-3">
                 <AlertTriangle className="w-5 h-5 text-orange-400 flex-shrink-0 mt-0.5" />
                 <div className="text-sm">
                   <p className="font-medium text-orange-300">
-                    {outbidPixelCountInSelection} pixel{outbidPixelCountInSelection > 1 ? 's' : ''} already owned in a rectangle of {totalBatchSize} pixels
+                    Area expanded to form a rectangle
                   </p>
                   <p className="text-orange-200/80 mt-1">
-                    You must purchase all {totalBatchSize} pixels from the batch.
-                    Outbid cost = previous price + 0.0001 SOL per pixel.
+                    Your selection overlaps with existing rectangles. The purchase area has been expanded from {(selMaxX - selMinX + 1) * (selMaxY - selMinY + 1)} to {pixelCount} pixels to maintain rectangle shape.
                   </p>
                 </div>
               </div>
             </div>
           )}
 
-          {/* Outbid warning (when no batch but has owned pixels) */}
-          {outbidPixelCountInSelection > 0 && batchPixelsToInclude.length === 0 && (
+          {/* Outbid warning */}
+          {outbidPixelCount > 0 && (
             <div className="p-4 bg-orange-500/20 rounded-lg border border-orange-500/50">
               <div className="flex items-start gap-3">
                 <AlertTriangle className="w-5 h-5 text-orange-400 flex-shrink-0 mt-0.5" />
                 <div className="text-sm">
                   <p className="font-medium text-orange-300">
-                    {outbidPixelCountInSelection} pixel{outbidPixelCountInSelection > 1 ? 's are' : ' is'} already owned
+                    {outbidPixelCount} pixel{outbidPixelCount > 1 ? 's are' : ' is'} already owned
                   </p>
                   <p className="text-orange-200/80 mt-1">
                     Outbid cost = previous price + 0.0001 SOL per pixel.
@@ -529,23 +530,13 @@ export function BulkPurchaseModal({
                     </span>
                   </div>
                 )}
-                {outbidPixelCountInSelection > 0 && (
+                {outbidPixelCount > 0 && (
                   <div className="flex justify-between items-center text-sm">
                     <span className="text-muted-foreground">
-                      {outbidPixelCountInSelection} outbid pixel{outbidPixelCountInSelection > 1 ? 's' : ''} in selection (+0.0001 SOL each)
+                      {outbidPixelCount} outbid pixel{outbidPixelCount > 1 ? 's' : ''} (+0.0001 SOL each)
                     </span>
                     <span className="font-mono text-orange-400">
-                      {lamportsToSol(outbidCostInSelection).toFixed(4)} SOL
-                    </span>
-                  </div>
-                )}
-                {batchPixelsToInclude.length > 0 && (
-                  <div className="flex justify-between items-center text-sm">
-                    <span className="text-muted-foreground">
-                      {batchPixelsToInclude.length} additional batch pixel{batchPixelsToInclude.length > 1 ? 's' : ''} (+0.0001 SOL each)
-                    </span>
-                    <span className="font-mono text-orange-400">
-                      {lamportsToSol(batchPixelsCost).toFixed(4)} SOL
+                      {lamportsToSol(outbidCost).toFixed(4)} SOL
                     </span>
                   </div>
                 )}
