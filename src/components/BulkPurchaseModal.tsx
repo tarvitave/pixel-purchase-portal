@@ -201,55 +201,93 @@ export function BulkPurchaseModal({
 
   // Calculate total cost for the entire rectangle (expanded bounds)
   // Own pixels are FREE to update - only charge for new pixels and outbidding others
-  const { 
-    totalCost, 
-    newPixelCount, 
-    outbidPixelCount, 
-    outbidCost, 
-    newCost, 
+  const {
+    totalCost,
+    newPixelCount,
+    outbidPixelCount,
+    outbidCost,
+    newCost,
     ownPixelCount,
     affectedBatches,
+
+    // Debug/clarity stats
+    selectionNewCount,
+    selectionOutbidCount,
+    selectionOwnCount,
+    selectionCost,
+
+    addedNewCount,
+    addedOutbidCount,
+    addedOwnCount,
+    addedCost,
   } = (() => {
     const existingMap = new Map<string, ExistingPixel>();
-    existingPixels.forEach(p => existingMap.set(`${p.x},${p.y}`, p));
-    
-    let newCount = 0;
-    let outbidCount = 0;
-    let ownCount = 0;
-    let totalNewCost = 0;
-    let totalOutbidCost = 0;
+    existingPixels.forEach((p) => existingMap.set(`${p.x},${p.y}`, p));
+
+    const classify = (existing: ExistingPixel | undefined) => {
+      if (existing && existing.owner_wallet) {
+        if (existing.owner_wallet === publicKey) {
+          return { kind: 'own' as const, cost: 0 };
+        }
+        return { kind: 'outbid' as const, cost: existing.price_lamports + BASE_PRICE_LAMPORTS };
+      }
+      return { kind: 'new' as const, cost: BASE_PRICE_LAMPORTS };
+    };
+
+    const apply = (
+      bucket: {
+        newCount: number;
+        outbidCount: number;
+        ownCount: number;
+        cost: number;
+      },
+      res: { kind: 'new' | 'outbid' | 'own'; cost: number }
+    ) => {
+      if (res.kind === 'new') bucket.newCount++;
+      if (res.kind === 'outbid') bucket.outbidCount++;
+      if (res.kind === 'own') bucket.ownCount++;
+      bucket.cost += res.cost;
+    };
+
+    // Totals across expanded rectangle
+    const totals = { newCount: 0, outbidCount: 0, ownCount: 0, cost: 0 };
+    const selection = { newCount: 0, outbidCount: 0, ownCount: 0, cost: 0 };
+    const added = { newCount: 0, outbidCount: 0, ownCount: 0, cost: 0 };
+
     const batchIds = new Set<string>();
-    
-    // Calculate cost for entire rectangle (expanded bounds)
+
     for (let y = minY; y <= maxY; y++) {
       for (let x = minX; x <= maxX; x++) {
         const existing = existingMap.get(`${x},${y}`);
-        if (existing && existing.owner_wallet) {
-          // Check if this pixel is owned by the current user
-          if (existing.owner_wallet === publicKey) {
-            // Own pixel - FREE to update
-            ownCount++;
-          } else {
-            // Someone else's pixel - need to outbid
-            outbidCount++;
-            totalOutbidCost += existing.price_lamports + BASE_PRICE_LAMPORTS;
-            if (existing.batch_id) batchIds.add(existing.batch_id);
-          }
-        } else {
-          newCount++;
-          totalNewCost += BASE_PRICE_LAMPORTS;
-        }
+        const res = classify(existing);
+
+        apply(totals, res);
+
+        const inSelection = x >= selMinX && x <= selMaxX && y >= selMinY && y <= selMaxY;
+        apply(inSelection ? selection : added, res);
+
+        if (res.kind === 'outbid' && existing?.batch_id) batchIds.add(existing.batch_id);
       }
     }
-    
+
     return {
-      totalCost: totalNewCost + totalOutbidCost,
-      newPixelCount: newCount,
-      outbidPixelCount: outbidCount,
-      outbidCost: totalOutbidCost,
-      newCost: totalNewCost,
-      ownPixelCount: ownCount,
+      totalCost: totals.cost,
+      newPixelCount: totals.newCount,
+      outbidPixelCount: totals.outbidCount,
+      outbidCost: totals.cost - (totals.newCount * BASE_PRICE_LAMPORTS),
+      newCost: totals.newCount * BASE_PRICE_LAMPORTS,
+      ownPixelCount: totals.ownCount,
       affectedBatches: batchIds.size,
+
+      selectionNewCount: selection.newCount,
+      selectionOutbidCount: selection.outbidCount,
+      selectionOwnCount: selection.ownCount,
+      selectionCost: selection.cost,
+
+      addedNewCount: added.newCount,
+      addedOutbidCount: added.outbidCount,
+      addedOwnCount: added.ownCount,
+      addedCost: added.cost,
     };
   })();
 
@@ -454,8 +492,15 @@ export function BulkPurchaseModal({
                   {width} × {height} = {pixelCount} pixels
                 </div>
                 {!loadingPrices && (
-                  <div className="text-xs text-muted-foreground mt-1">
-                    Paying for {newPixelCount + outbidPixelCount} • Free updates {ownPixelCount}
+                  <div className="text-xs text-muted-foreground mt-1 space-y-0.5">
+                    <div>
+                      Selected: pay {selectionNewCount + selectionOutbidCount} • free {selectionOwnCount}
+                    </div>
+                    {wasExpanded && (
+                      <div>
+                        Added to complete rectangle: pay {addedNewCount + addedOutbidCount} • free {addedOwnCount}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

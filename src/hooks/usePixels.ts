@@ -50,21 +50,31 @@ export function usePixels() {
     const fetchPixels = async () => {
       try {
         setLoading(true);
+        setError(null);
         console.log('Fetching pixels...');
-        const { data, error } = await supabase
-          .from('pixels')
-          .select('*');
 
-        if (error) throw error;
-
-        console.log('Fetched pixels count:', data?.length);
-
+        const PAGE_SIZE = 1000;
+        let from = 0;
         const pixelMap: PixelMap = {};
-        data?.forEach((pixel) => {
-          pixelMap[getPixelKey(pixel.x, pixel.y)] = pixel;
-        });
-        
-        console.log('PixelMap keys count:', Object.keys(pixelMap).length);
+
+        while (true) {
+          const { data, error } = await supabase
+            .from('pixels')
+            .select('*')
+            .range(from, from + PAGE_SIZE - 1);
+
+          if (error) throw error;
+
+          const page = data || [];
+          page.forEach((pixel) => {
+            pixelMap[getPixelKey(pixel.x, pixel.y)] = pixel;
+          });
+
+          if (page.length < PAGE_SIZE) break;
+          from += PAGE_SIZE;
+        }
+
+        console.log('Fetched pixels count:', Object.keys(pixelMap).length);
         setPixels(pixelMap);
       } catch (err) {
         console.error('Failed to fetch pixels:', err);

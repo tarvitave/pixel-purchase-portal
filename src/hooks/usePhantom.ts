@@ -10,8 +10,8 @@ interface PhantomProvider {
   signMessage: (message: Uint8Array) => Promise<{ signature: Uint8Array }>;
   connect: () => Promise<{ publicKey: { toString: () => string } }>;
   disconnect: () => Promise<void>;
-  on: (event: string, callback: (...args: unknown[]) => void) => void;
-  off: (event: string, callback: (...args: unknown[]) => void) => void;
+  on: (event: 'connect' | 'disconnect' | 'accountChanged', callback: (...args: unknown[]) => void) => void;
+  off: (event: 'connect' | 'disconnect' | 'accountChanged', callback: (...args: unknown[]) => void) => void;
 }
 
 declare global {
@@ -59,12 +59,37 @@ export function usePhantom(): UsePhantomReturn {
           setPublicKey(null);
         };
 
+        const handleAccountChanged = (next: unknown) => {
+          // Phantom emits accountChanged when user switches accounts inside the wallet UI
+          if (!next) {
+            setConnected(false);
+            setPublicKey(null);
+            return;
+          }
+
+          try {
+            const nextStr =
+              typeof next === 'string'
+                ? next
+                : (next as { toString?: () => string })?.toString?.();
+
+            if (nextStr) {
+              setConnected(true);
+              setPublicKey(nextStr);
+            }
+          } catch {
+            // Ignore malformed payloads
+          }
+        };
+
         provider.on('connect', handleConnect);
         provider.on('disconnect', handleDisconnect);
+        provider.on('accountChanged', handleAccountChanged);
 
         return () => {
           provider.off('connect', handleConnect);
           provider.off('disconnect', handleDisconnect);
+          provider.off('accountChanged', handleAccountChanged);
         };
       }
     };
