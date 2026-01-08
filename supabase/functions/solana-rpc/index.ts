@@ -11,6 +11,7 @@ type RpcRequestBody = {
 };
 
 const ALLOWED_METHODS = new Set([
+  'getBalance',
   'getLatestBlockhash',
   'sendTransaction',
   'getSignatureStatuses',
