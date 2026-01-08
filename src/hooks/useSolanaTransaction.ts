@@ -125,63 +125,93 @@ export function useSolanaTransaction(): UseSolanaTransactionReturn {
         return null;
       }
 
-      const latest = await callSolanaRpc<{
-        value: { blockhash: string; lastValidBlockHeight: number };
-      }>('getLatestBlockhash', [{ commitment: 'confirmed' }]);
+      // Retry logic for blockhash expiration
+      const maxRetries = 2;
+      let lastError: Error | null = null;
+      
+      for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        try {
+          const latest = await callSolanaRpc<{
+            value: { blockhash: string; lastValidBlockHeight: number };
+          }>('getLatestBlockhash', [{ commitment: 'confirmed' }]);
 
-      const blockhash = latest.value.blockhash;
+          const blockhash = latest.value.blockhash;
 
-      const transaction = new Transaction().add(
-        SystemProgram.transfer({
-          fromPubkey,
-          toPubkey,
-          lamports,
-        })
-      );
+          const transaction = new Transaction().add(
+            SystemProgram.transfer({
+              fromPubkey,
+              toPubkey,
+              lamports,
+            })
+          );
 
-      transaction.recentBlockhash = blockhash;
-      transaction.feePayer = fromPubkey;
+          transaction.recentBlockhash = blockhash;
+          transaction.feePayer = fromPubkey;
 
-      console.log(`Sending ${lamports} lamports to ${treasuryWallet} on mainnet...`);
+          console.log(`Sending ${lamports} lamports to ${treasuryWallet} on mainnet... (attempt ${attempt + 1})`);
 
-      const signedTransaction = await provider.signTransaction(transaction);
-      const raw = (signedTransaction as Transaction).serialize();
-      const rawBase64 = bytesToBase64(raw);
+          const signedTransaction = await provider.signTransaction(transaction);
+          const raw = (signedTransaction as Transaction).serialize();
+          const rawBase64 = bytesToBase64(raw);
 
-      const signature = await callSolanaRpc<string>('sendTransaction', [
-        rawBase64,
-        { encoding: 'base64', preflightCommitment: 'confirmed' },
-      ]);
+          const signature = await callSolanaRpc<string>('sendTransaction', [
+            rawBase64,
+            { encoding: 'base64', preflightCommitment: 'confirmed' },
+          ]);
 
-      console.log('Transaction sent:', signature);
-      toast.info('Transaction submitted, waiting for confirmation...');
+          console.log('Transaction sent:', signature);
+          toast.info('Transaction submitted, waiting for confirmation...');
 
-      const start = Date.now();
-      const timeoutMs = 60_000;
+          const start = Date.now();
+          const timeoutMs = 60_000;
 
-      while (Date.now() - start < timeoutMs) {
-        const statuses = await callSolanaRpc<{
-          value: Array<{ confirmationStatus?: string; err?: unknown } | null>;
-        }>('getSignatureStatuses', [[signature], { searchTransactionHistory: true }]);
+          while (Date.now() - start < timeoutMs) {
+            const statuses = await callSolanaRpc<{
+              value: Array<{ confirmationStatus?: string; err?: unknown } | null>;
+            }>('getSignatureStatuses', [[signature], { searchTransactionHistory: true }]);
 
-        const status = statuses.value?.[0];
+            const status = statuses.value?.[0];
 
-        if (status?.err) {
-          throw new Error('Transaction failed on chain');
+            if (status?.err) {
+              throw new Error('Transaction failed on chain');
+            }
+
+            if (
+              status?.confirmationStatus === 'confirmed' ||
+              status?.confirmationStatus === 'finalized'
+            ) {
+              console.log('Transaction confirmed:', signature);
+              return signature;
+            }
+
+            await sleep(1500);
+          }
+
+          throw new Error('Timed out waiting for confirmation');
+          
+        } catch (error) {
+          const err = error as { message?: string };
+          const message = err.message || '';
+          
+          // If blockhash expired and we have retries left, try again with fresh blockhash
+          if (message.includes('Blockhash not found') && attempt < maxRetries) {
+            console.log('Blockhash expired, retrying with fresh blockhash...');
+            toast.info('Transaction expired, retrying...');
+            lastError = error as Error;
+            continue;
+          }
+          
+          // If user rejected, don't retry
+          if (message.includes('User rejected')) {
+            throw error;
+          }
+          
+          throw error;
         }
-
-        if (
-          status?.confirmationStatus === 'confirmed' ||
-          status?.confirmationStatus === 'finalized'
-        ) {
-          console.log('Transaction confirmed:', signature);
-          return signature;
-        }
-
-        await sleep(1500);
       }
-
-      throw new Error('Timed out waiting for confirmation');
+      
+      // If we exhausted retries, throw the last error
+      throw lastError || new Error('Transaction failed after retries');
 
     } catch (error) {
       console.error('Transaction error:', error);
