@@ -188,9 +188,9 @@ serve(async (req) => {
       );
     }
 
-    if (pixels.length > 10000) {
+    if (pixels.length > 100000) {
       return new Response(
-        JSON.stringify({ error: 'Maximum 10,000 pixels per transaction' }),
+        JSON.stringify({ error: 'Maximum 100,000 pixels per transaction' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
