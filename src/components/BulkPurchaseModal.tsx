@@ -5,9 +5,9 @@ import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 import { usePhantom } from '@/hooks/usePhantom';
 import { useSolanaTransaction } from '@/hooks/useSolanaTransaction';
-import { lamportsToSol, solToLamports } from '@/hooks/usePixels';
+import { lamportsToSol, getMinBidLamports } from '@/hooks/usePixels';
 import { supabase } from '@/integrations/supabase/client';
-import { Upload } from 'lucide-react';
+import { Upload, AlertTriangle } from 'lucide-react';
 
 interface BulkPurchaseModalProps {
   open: boolean;
@@ -16,6 +16,13 @@ interface BulkPurchaseModalProps {
   startY: number;
   endX: number;
   endY: number;
+}
+
+interface ExistingPixel {
+  x: number;
+  y: number;
+  price_lamports: number;
+  owner_wallet: string | null;
 }
 
 const BASE_PRICE_LAMPORTS = 100_000; // 0.0001 SOL per pixel
@@ -36,6 +43,8 @@ export function BulkPurchaseModal({
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [extractedColors, setExtractedColors] = useState<string[][]>([]);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [existingPixels, setExistingPixels] = useState<ExistingPixel[]>([]);
+  const [loadingPrices, setLoadingPrices] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -47,7 +56,68 @@ export function BulkPurchaseModal({
   const width = maxX - minX + 1;
   const height = maxY - minY + 1;
   const pixelCount = width * height;
-  const totalCost = pixelCount * BASE_PRICE_LAMPORTS;
+
+  // Fetch existing pixels in the selection area
+  useEffect(() => {
+    if (!open) return;
+    
+    const fetchExistingPixels = async () => {
+      setLoadingPrices(true);
+      try {
+        const { data, error } = await supabase
+          .from('pixels')
+          .select('x, y, price_lamports, owner_wallet')
+          .gte('x', minX)
+          .lte('x', maxX)
+          .gte('y', minY)
+          .lte('y', maxY);
+        
+        if (error) throw error;
+        setExistingPixels(data || []);
+      } catch (err) {
+        console.error('Failed to fetch existing pixels:', err);
+        setExistingPixels([]);
+      } finally {
+        setLoadingPrices(false);
+      }
+    };
+    
+    fetchExistingPixels();
+  }, [open, minX, maxX, minY, maxY]);
+
+  // Calculate total cost considering existing pixels
+  const { totalCost, newPixelCount, outbidPixelCount, outbidCost, newCost } = (() => {
+    const existingMap = new Map<string, ExistingPixel>();
+    existingPixels.forEach(p => existingMap.set(`${p.x},${p.y}`, p));
+    
+    let newCount = 0;
+    let outbidCount = 0;
+    let totalNewCost = 0;
+    let totalOutbidCost = 0;
+    
+    for (let y = minY; y <= maxY; y++) {
+      for (let x = minX; x <= maxX; x++) {
+        const existing = existingMap.get(`${x},${y}`);
+        if (existing && existing.owner_wallet) {
+          // Owned pixel - needs outbid price (10% more)
+          outbidCount++;
+          totalOutbidCost += getMinBidLamports(existing.price_lamports);
+        } else {
+          // New pixel - base price
+          newCount++;
+          totalNewCost += BASE_PRICE_LAMPORTS;
+        }
+      }
+    }
+    
+    return {
+      totalCost: totalNewCost + totalOutbidCost,
+      newPixelCount: newCount,
+      outbidPixelCount: outbidCount,
+      outbidCost: totalOutbidCost,
+      newCost: totalNewCost,
+    };
+  })();
 
   const extractColorsFromImage = (imageSrc: string) => {
     const img = new Image();
@@ -314,22 +384,63 @@ export function BulkPurchaseModal({
             </div>
           )}
 
-          {/* Pricing info */}
-          <div className="p-4 bg-accent/20 rounded-lg border border-accent/30">
-            <div className="flex justify-between items-center">
-              <div>
-                <div className="text-xs text-muted-foreground">Total Cost</div>
-                <div className="text-lg font-bold text-accent">
-                  {lamportsToSol(totalCost).toFixed(4)} SOL
-                </div>
-              </div>
-              <div className="text-right">
-                <div className="text-xs text-muted-foreground">Per Pixel</div>
-                <div className="text-sm text-foreground">
-                  {lamportsToSol(BASE_PRICE_LAMPORTS).toFixed(4)} SOL
+          {/* Outbid warning */}
+          {outbidPixelCount > 0 && (
+            <div className="p-4 bg-orange-500/20 rounded-lg border border-orange-500/50">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="w-5 h-5 text-orange-400 flex-shrink-0 mt-0.5" />
+                <div className="text-sm">
+                  <p className="font-medium text-orange-300">
+                    {outbidPixelCount} pixel{outbidPixelCount > 1 ? 's are' : ' is'} already owned
+                  </p>
+                  <p className="text-orange-200/80 mt-1">
+                    You'll need to outbid at 10% above current price. This adds{' '}
+                    <span className="font-mono font-medium">
+                      {lamportsToSol(outbidCost - outbidPixelCount * BASE_PRICE_LAMPORTS).toFixed(4)} SOL
+                    </span>{' '}
+                    to the base cost.
+                  </p>
                 </div>
               </div>
             </div>
+          )}
+
+          {/* Pricing info */}
+          <div className="p-4 bg-accent/20 rounded-lg border border-accent/30 space-y-3">
+            {loadingPrices ? (
+              <div className="text-center text-muted-foreground text-sm">
+                Calculating prices...
+              </div>
+            ) : (
+              <>
+                {newPixelCount > 0 && (
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-muted-foreground">
+                      {newPixelCount} new pixel{newPixelCount > 1 ? 's' : ''} × {lamportsToSol(BASE_PRICE_LAMPORTS).toFixed(4)} SOL
+                    </span>
+                    <span className="font-mono text-foreground">
+                      {lamportsToSol(newCost).toFixed(4)} SOL
+                    </span>
+                  </div>
+                )}
+                {outbidPixelCount > 0 && (
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-muted-foreground">
+                      {outbidPixelCount} outbid pixel{outbidPixelCount > 1 ? 's' : ''} (10% premium)
+                    </span>
+                    <span className="font-mono text-orange-400">
+                      {lamportsToSol(outbidCost).toFixed(4)} SOL
+                    </span>
+                  </div>
+                )}
+                <div className="border-t border-border pt-3 flex justify-between items-center">
+                  <div className="text-xs text-muted-foreground">Total Cost</div>
+                  <div className="text-lg font-bold text-accent">
+                    {lamportsToSol(totalCost).toFixed(4)} SOL
+                  </div>
+                </div>
+              </>
+            )}
           </div>
 
           {/* Action buttons */}
