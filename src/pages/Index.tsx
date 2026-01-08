@@ -173,7 +173,7 @@ const Index = () => {
               </li>
               <li className="flex gap-2">
                 <span className="text-primary font-bold">5.</span>
-                Pay 0.0001 SOL per pixel
+                Pay 0.00001 SOL per pixel
               </li>
             </ol>
           </div>
@@ -212,7 +212,7 @@ const Index = () => {
               </div>
               <div className="flex justify-between text-xs">
                 <span className="text-muted-foreground">Base Price</span>
-                <span className="font-mono text-primary">0.0001 SOL</span>
+                <span className="font-mono text-primary">0.00001 SOL</span>
               </div>
             </div>
           </div>
