@@ -1,15 +1,27 @@
 import { useState, useCallback, useEffect } from 'react';
-import { 
-  Connection, 
-  PublicKey, 
-  Transaction, 
+import {
+  PublicKey,
+  Transaction,
   SystemProgram,
 } from '@solana/web3.js';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 
-// Mainnet RPC endpoint - will be fetched from edge function
-const DEFAULT_RPC_ENDPOINT = 'https://api.mainnet-beta.solana.com';
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = '';
+  const chunkSize = 0x8000;
+
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+  }
+
+  return btoa(binary);
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 
 export type SolanaNetwork = 'mainnet-beta';
 
@@ -64,21 +76,45 @@ export function useSolanaTransaction(): UseSolanaTransactionReturn {
     setLoading(true);
 
     try {
-      const connection = new Connection(DEFAULT_RPC_ENDPOINT, 'confirmed');
-      
-      // Get the public key as a proper PublicKey object
       const fromPubkey = new PublicKey(provider.publicKey.toString());
       const toPubkey = new PublicKey(treasuryWallet);
-      
-      // Get the latest blockhash
-      const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('confirmed');
 
-      // Create the transfer transaction
+      const callSolanaRpc = async <T,>(
+        method: string,
+        params: unknown[] = []
+      ): Promise<T> => {
+        const { data, error } = await supabase.functions.invoke('solana-rpc', {
+          body: { method, params },
+        });
+
+        if (error) {
+          throw new Error(error.message);
+        }
+
+        const rpc = data as { result?: T; error?: { message?: string } };
+
+        if (rpc?.error) {
+          throw new Error(rpc.error.message || 'Solana RPC error');
+        }
+
+        if (rpc?.result === undefined) {
+          throw new Error('Invalid Solana RPC response');
+        }
+
+        return rpc.result;
+      };
+
+      const latest = await callSolanaRpc<{
+        value: { blockhash: string; lastValidBlockHeight: number };
+      }>('getLatestBlockhash', [{ commitment: 'confirmed' }]);
+
+      const blockhash = latest.value.blockhash;
+
       const transaction = new Transaction().add(
         SystemProgram.transfer({
           fromPubkey,
           toPubkey,
-          lamports: lamports,
+          lamports,
         })
       );
 
@@ -87,30 +123,44 @@ export function useSolanaTransaction(): UseSolanaTransactionReturn {
 
       console.log(`Sending ${lamports} lamports to ${treasuryWallet} on mainnet...`);
 
-      // Sign the transaction using Phantom
       const signedTransaction = await provider.signTransaction(transaction);
+      const raw = (signedTransaction as Transaction).serialize();
+      const rawBase64 = bytesToBase64(raw);
 
-      // Send the signed transaction
-      const signature = await connection.sendRawTransaction(
-        (signedTransaction as Transaction).serialize()
-      );
+      const signature = await callSolanaRpc<string>('sendTransaction', [
+        rawBase64,
+        { encoding: 'base64', preflightCommitment: 'confirmed' },
+      ]);
 
       console.log('Transaction sent:', signature);
       toast.info('Transaction submitted, waiting for confirmation...');
 
-      // Wait for confirmation
-      const confirmation = await connection.confirmTransaction({
-        signature,
-        blockhash,
-        lastValidBlockHeight,
-      }, 'confirmed');
+      const start = Date.now();
+      const timeoutMs = 60_000;
 
-      if (confirmation.value.err) {
-        throw new Error('Transaction failed on chain');
+      while (Date.now() - start < timeoutMs) {
+        const statuses = await callSolanaRpc<{
+          value: Array<{ confirmationStatus?: string; err?: unknown } | null>;
+        }>('getSignatureStatuses', [[signature], { searchTransactionHistory: true }]);
+
+        const status = statuses.value?.[0];
+
+        if (status?.err) {
+          throw new Error('Transaction failed on chain');
+        }
+
+        if (
+          status?.confirmationStatus === 'confirmed' ||
+          status?.confirmationStatus === 'finalized'
+        ) {
+          console.log('Transaction confirmed:', signature);
+          return signature;
+        }
+
+        await sleep(1500);
       }
 
-      console.log('Transaction confirmed:', signature);
-      return signature;
+      throw new Error('Timed out waiting for confirmation');
 
     } catch (error) {
       console.error('Transaction error:', error);

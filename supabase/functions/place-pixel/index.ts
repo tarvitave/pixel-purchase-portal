@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { createClient } from "jsr:@supabase/supabase-js@2";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.90.0";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -9,7 +9,11 @@ const corsHeaders = {
 const BASE_PRICE_LAMPORTS = 100_000; // 0.0001 SOL
 
 // Solana RPC endpoint - use custom RPC if configured, otherwise fallback to public
-const SOLANA_RPC = Deno.env.get('SOLANA_RPC_URL') || "https://api.mainnet-beta.solana.com";
+const SOLANA_RPC = (() => {
+  const rpcUrlEnv = Deno.env.get('SOLANA_RPC_URL');
+  if (rpcUrlEnv && /^https?:\/\//.test(rpcUrlEnv)) return rpcUrlEnv;
+  return "https://api.mainnet-beta.solana.com";
+})();
 
 interface PlacePixelRequest {
   x: number;
