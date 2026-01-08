@@ -49,17 +49,21 @@ export function usePixels() {
     const fetchPixels = async () => {
       try {
         setLoading(true);
+        console.log('Fetching pixels...');
         const { data, error } = await supabase
           .from('pixels')
           .select('*');
 
         if (error) throw error;
 
+        console.log('Fetched pixels count:', data?.length);
+
         const pixelMap: PixelMap = {};
         data?.forEach((pixel) => {
           pixelMap[getPixelKey(pixel.x, pixel.y)] = pixel;
         });
         
+        console.log('PixelMap keys count:', Object.keys(pixelMap).length);
         setPixels(pixelMap);
       } catch (err) {
         console.error('Failed to fetch pixels:', err);
