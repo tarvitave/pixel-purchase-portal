@@ -533,7 +533,7 @@ export function BulkPurchaseModal({
                 {outbidPixelCount > 0 && (
                   <div className="flex justify-between items-center text-sm">
                     <span className="text-muted-foreground">
-                      {outbidPixelCount} outbid pixel{outbidPixelCount > 1 ? 's' : ''} (+0.0001 SOL each)
+                      {outbidPixelCount} outbid pixel{outbidPixelCount > 1 ? 's' : ''} (prev price + 0.0001 SOL)
                     </span>
                     <span className="font-mono text-orange-400">
                       {lamportsToSol(outbidCost).toFixed(4)} SOL
