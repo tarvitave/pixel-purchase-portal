@@ -78,76 +78,115 @@ export function BulkPurchaseModal({
   // Then calculate expanded bounding box to form a rectangle
   useEffect(() => {
     if (!open) return;
-    
+
     // Reset expanded bounds when modal opens
     setExpandedBounds({ minX: selMinX, maxX: selMaxX, minY: selMinY, maxY: selMaxY });
-    
+
     const fetchExistingPixels = async () => {
+      const PAGE_SIZE = 1000;
       setLoadingPrices(true);
-      try {
-        // First, get pixels in the selection area
-        const { data: selectionPixels, error } = await supabase
-          .from('pixels')
-          .select('x, y, price_lamports, owner_wallet, batch_id')
-          .gte('x', selMinX)
-          .lte('x', selMaxX)
-          .gte('y', selMinY)
-          .lte('y', selMaxY);
-        
-        if (error) throw error;
-        
-        // Find unique batch_ids from overlapping pixels
-        const batchIds = new Set<string>();
-        (selectionPixels || []).forEach(p => {
-          if (p.batch_id) batchIds.add(p.batch_id);
-        });
-        
-        // If there are batches, fetch ALL pixels from those batches
-        let allPixels = selectionPixels || [];
-        if (batchIds.size > 0) {
-          const { data: batchPixels, error: batchError } = await supabase
+
+      const fetchPixelsInBounds = async (
+        minX: number,
+        maxX: number,
+        minY: number,
+        maxY: number
+      ): Promise<ExistingPixel[]> => {
+        const all: ExistingPixel[] = [];
+        let from = 0;
+
+        while (true) {
+          const { data, error } = await supabase
             .from('pixels')
             .select('x, y, price_lamports, owner_wallet, batch_id')
-            .in('batch_id', Array.from(batchIds));
-          
-          if (batchError) throw batchError;
-          
+            .gte('x', minX)
+            .lte('x', maxX)
+            .gte('y', minY)
+            .lte('y', maxY)
+            .range(from, from + PAGE_SIZE - 1);
+
+          if (error) throw error;
+
+          const page = (data || []) as ExistingPixel[];
+          all.push(...page);
+
+          if (page.length < PAGE_SIZE) break;
+          from += PAGE_SIZE;
+        }
+
+        return all;
+      };
+
+      const fetchPixelsByBatchIds = async (batchIds: string[]): Promise<ExistingPixel[]> => {
+        if (batchIds.length === 0) return [];
+
+        const all: ExistingPixel[] = [];
+        let from = 0;
+
+        while (true) {
+          const { data, error } = await supabase
+            .from('pixels')
+            .select('x, y, price_lamports, owner_wallet, batch_id')
+            .in('batch_id', batchIds)
+            .range(from, from + PAGE_SIZE - 1);
+
+          if (error) throw error;
+
+          const page = (data || []) as ExistingPixel[];
+          all.push(...page);
+
+          if (page.length < PAGE_SIZE) break;
+          from += PAGE_SIZE;
+        }
+
+        return all;
+      };
+
+      try {
+        // First, get pixels in the selection area (paged; backend caps at 1000 per call)
+        const selectionPixels = await fetchPixelsInBounds(selMinX, selMaxX, selMinY, selMaxY);
+
+        // Find unique batch_ids from overlapping pixels
+        const batchIds = new Set<string>();
+        selectionPixels.forEach((p) => {
+          if (p.batch_id) batchIds.add(p.batch_id);
+        });
+
+        // If there are batches, fetch ALL pixels from those batches
+        let allPixels = selectionPixels;
+        if (batchIds.size > 0) {
+          const batchPixels = await fetchPixelsByBatchIds(Array.from(batchIds));
+
           // Merge: use a map to avoid duplicates
           const pixelMap = new Map<string, ExistingPixel>();
-          allPixels.forEach(p => pixelMap.set(`${p.x},${p.y}`, p));
-          (batchPixels || []).forEach(p => pixelMap.set(`${p.x},${p.y}`, p));
+          allPixels.forEach((p) => pixelMap.set(`${p.x},${p.y}`, p));
+          batchPixels.forEach((p) => pixelMap.set(`${p.x},${p.y}`, p));
           allPixels = Array.from(pixelMap.values());
-          
+
           // Calculate expanded bounding box to ensure rectangle
-          let newMinX = selMinX, newMaxX = selMaxX, newMinY = selMinY, newMaxY = selMaxY;
-          allPixels.forEach(p => {
+          let newMinX = selMinX,
+            newMaxX = selMaxX,
+            newMinY = selMinY,
+            newMaxY = selMaxY;
+
+          allPixels.forEach((p) => {
             newMinX = Math.min(newMinX, p.x);
             newMaxX = Math.max(newMaxX, p.x);
             newMinY = Math.min(newMinY, p.y);
             newMaxY = Math.max(newMaxY, p.y);
           });
-          
+
           // Update expanded bounds
           setExpandedBounds({ minX: newMinX, maxX: newMaxX, minY: newMinY, maxY: newMaxY });
-          
+
           // Now fetch ALL pixels in the expanded area (for correct pricing)
           if (newMinX !== selMinX || newMaxX !== selMaxX || newMinY !== selMinY || newMaxY !== selMaxY) {
-            const { data: expandedPixels, error: expandedError } = await supabase
-              .from('pixels')
-              .select('x, y, price_lamports, owner_wallet, batch_id')
-              .gte('x', newMinX)
-              .lte('x', newMaxX)
-              .gte('y', newMinY)
-              .lte('y', newMaxY);
-            
-            if (expandedError) throw expandedError;
-            
-            // Merge all pixels
-            (expandedPixels || []).forEach(p => pixelMap.set(`${p.x},${p.y}`, p));
+            const expandedPixels = await fetchPixelsInBounds(newMinX, newMaxX, newMinY, newMaxY);
+            expandedPixels.forEach((p) => pixelMap.set(`${p.x},${p.y}`, p));
             allPixels = Array.from(pixelMap.values());
           }
         }
-        
+
         setExistingPixels(allPixels);
       } catch (err) {
         console.error('Failed to fetch existing pixels:', err);
@@ -156,7 +195,7 @@ export function BulkPurchaseModal({
         setLoadingPrices(false);
       }
     };
-    
+
     fetchExistingPixels();
   }, [open, selMinX, selMaxX, selMinY, selMaxY]);
 
@@ -414,6 +453,11 @@ export function BulkPurchaseModal({
                 <div className="font-mono text-sm text-foreground">
                   {width} × {height} = {pixelCount} pixels
                 </div>
+                {!loadingPrices && (
+                  <div className="text-xs text-muted-foreground mt-1">
+                    Paying for {newPixelCount + outbidPixelCount} • Free updates {ownPixelCount}
+                  </div>
+                )}
               </div>
             </div>
           </div>
