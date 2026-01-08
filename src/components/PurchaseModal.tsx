@@ -20,7 +20,7 @@ const BASE_PRICE_SOL = 0.0001;
 
 export function PurchaseModal({ open, onClose, x, y, color, existingPixel }: PurchaseModalProps) {
   const { publicKey, connected } = usePhantom();
-  const { sendPayment, loading: txLoading, network } = useSolanaTransaction();
+  const { sendPayment, loading: txLoading } = useSolanaTransaction();
   const [loading, setLoading] = useState(false);
   const [bidAmount, setBidAmount] = useState<string>('');
 
@@ -69,7 +69,7 @@ export function PurchaseModal({ open, onClose, x, y, color, existingPixel }: Pur
           price_lamports: bidLamports,
           wallet: publicKey,
           transaction_signature: transactionSignature,
-          network,
+          network: 'mainnet-beta',
         },
       });
 

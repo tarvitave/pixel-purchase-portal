@@ -29,7 +29,7 @@ export function BulkPurchaseModal({
   endY 
 }: BulkPurchaseModalProps) {
   const { publicKey, connected } = usePhantom();
-  const { sendPayment, loading: txLoading, network } = useSolanaTransaction();
+  const { sendPayment, loading: txLoading } = useSolanaTransaction();
   const [loading, setLoading] = useState(false);
   const [imageUrl, setImageUrl] = useState('');
   const [linkUrl, setLinkUrl] = useState('');
@@ -169,7 +169,7 @@ export function BulkPurchaseModal({
           price_lamports: totalCost,
           wallet: publicKey,
           transaction_signature: transactionSignature,
-          network,
+          network: 'mainnet-beta',
           link_url: linkUrl || null,
         },
       });
