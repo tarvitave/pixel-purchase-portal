@@ -7,6 +7,7 @@ import { PurchaseModal } from '@/components/PurchaseModal';
 import { BulkPurchaseModal } from '@/components/BulkPurchaseModal';
 import { OutbidBatchModal } from '@/components/OutbidBatchModal';
 import { Leaderboard } from '@/components/Leaderboard';
+import { ImagePlacementPanel, type ImagePlacementData } from '@/components/ImagePlacementPanel';
 import { usePixels, type Pixel } from '@/hooks/usePixels';
 import { usePhantom } from '@/hooks/usePhantom';
 import { toast } from 'sonner';
@@ -26,19 +27,51 @@ const Index = () => {
     startY: number;
     endX: number;
     endY: number;
+    preloadedImage?: string;
+    preloadedLinkUrl?: string;
   }>({ open: false, startX: 0, startY: 0, endX: 0, endY: 0 });
   const [batchOutbidModal, setBatchOutbidModal] = useState<{
     open: boolean;
     batchId: string;
     clickedPixel: Pixel | null;
   }>({ open: false, batchId: '', clickedPixel: null });
+  const [imagePlacement, setImagePlacement] = useState<ImagePlacementData | null>(null);
   
   const { pixelCount } = usePixels();
   const { connected, publicKey } = usePhantom();
 
+  const handleImageReady = (data: ImagePlacementData) => {
+    setImagePlacement(data);
+    setSelectionMode('single'); // Switch to single mode for clicking
+    toast.info('Click on the canvas to place your image');
+  };
+
+  const handleImagePlacementCancel = () => {
+    setImagePlacement(null);
+  };
+
   const handlePixelClick = (x: number, y: number, existingPixel: Pixel | undefined) => {
     if (!connected) {
       toast.error('Connect your Phantom wallet to place pixels');
+      return;
+    }
+    
+    // If image placement mode is active, open bulk modal with the image
+    if (imagePlacement) {
+      const endX = x + imagePlacement.width - 1;
+      const endY = y + imagePlacement.height - 1;
+      
+      // Store the image data for the bulk modal
+      setBulkModal({ 
+        open: true, 
+        startX: x, 
+        startY: y, 
+        endX, 
+        endY,
+        preloadedImage: imagePlacement.imageSrc,
+        preloadedLinkUrl: imagePlacement.linkUrl,
+      });
+      setImagePlacement(null); // Clear placement mode
       return;
     }
     
@@ -108,6 +141,13 @@ const Index = () => {
 
         {/* Sidebar */}
         <aside className="w-80 bg-card/50 backdrop-blur-sm border-l border-border p-4 flex flex-col gap-4 overflow-y-auto">
+          {/* Image Placement Panel */}
+          <ImagePlacementPanel
+            onImageReady={handleImageReady}
+            onCancel={handleImagePlacementCancel}
+            isActive={!!imagePlacement}
+          />
+
           <ColorPicker
             selectedColor={selectedColor}
             onColorChange={setSelectedColor}
@@ -199,6 +239,8 @@ const Index = () => {
         startY={bulkModal.startY}
         endX={bulkModal.endX}
         endY={bulkModal.endY}
+        preloadedImage={bulkModal.preloadedImage}
+        preloadedLinkUrl={bulkModal.preloadedLinkUrl}
       />
 
       {/* Batch outbid modal */}

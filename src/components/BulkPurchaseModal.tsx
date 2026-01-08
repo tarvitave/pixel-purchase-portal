@@ -16,6 +16,8 @@ interface BulkPurchaseModalProps {
   startY: number;
   endX: number;
   endY: number;
+  preloadedImage?: string;
+  preloadedLinkUrl?: string;
 }
 
 interface ExistingPixel {
@@ -35,7 +37,9 @@ export function BulkPurchaseModal({
   startX, 
   startY, 
   endX, 
-  endY 
+  endY,
+  preloadedImage,
+  preloadedLinkUrl,
 }: BulkPurchaseModalProps) {
   const { publicKey, connected } = usePhantom();
   const { sendPayment, loading: txLoading } = useSolanaTransaction();
@@ -370,6 +374,18 @@ export function BulkPurchaseModal({
     setUploadedFile(null); // Clear uploaded file
     extractColorsFromImage(imageUrl);
   }, [imageUrl, width, height]);
+
+  // Handle preloaded image from ImagePlacementPanel
+  useEffect(() => {
+    if (open && preloadedImage) {
+      setImageUrl('');
+      setUploadedFile(null);
+      if (preloadedLinkUrl) {
+        setLinkUrl(preloadedLinkUrl);
+      }
+      extractColorsFromImage(preloadedImage);
+    }
+  }, [open, preloadedImage, preloadedLinkUrl]);
 
   const handlePurchase = async () => {
     if (!connected || !publicKey) {
