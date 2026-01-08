@@ -11,6 +11,7 @@ export interface Pixel {
   price_lamports: number;
   transaction_signature: string | null;
   link_url: string | null;
+  batch_id: string | null;
   created_at: string;
   updated_at: string;
 }

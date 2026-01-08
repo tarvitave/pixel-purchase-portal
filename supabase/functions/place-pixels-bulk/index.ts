@@ -279,6 +279,9 @@ serve(async (req) => {
       );
     }
 
+    // Generate a unique batch_id for this purchase to group all pixels together
+    const batchId = crypto.randomUUID();
+    
     // Prepare pixel data for bulk upsert
     const pricePerPixel = Math.floor(price_lamports / pixels.length);
     const pixelData = pixels.map((pixel, index) => ({
@@ -290,6 +293,7 @@ serve(async (req) => {
       // Only first pixel gets the transaction signature for tracking
       transaction_signature: index === 0 ? transaction_signature : null,
       link_url: link_url || null,
+      batch_id: batchId,
     }));
 
     // Bulk upsert pixels
