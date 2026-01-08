@@ -4,6 +4,7 @@ import { PixelCanvas } from '@/components/PixelCanvas';
 import { ColorPicker } from '@/components/ColorPicker';
 import { PurchaseModal } from '@/components/PurchaseModal';
 import { BulkPurchaseModal } from '@/components/BulkPurchaseModal';
+import { OutbidBatchModal } from '@/components/OutbidBatchModal';
 import { Leaderboard } from '@/components/Leaderboard';
 import { usePixels, type Pixel } from '@/hooks/usePixels';
 import { usePhantom } from '@/hooks/usePhantom';
@@ -25,9 +26,14 @@ const Index = () => {
     endX: number;
     endY: number;
   }>({ open: false, startX: 0, startY: 0, endX: 0, endY: 0 });
+  const [batchOutbidModal, setBatchOutbidModal] = useState<{
+    open: boolean;
+    batchId: string;
+    clickedPixel: Pixel | null;
+  }>({ open: false, batchId: '', clickedPixel: null });
   
   const { pixelCount } = usePixels();
-  const { connected } = usePhantom();
+  const { connected, publicKey } = usePhantom();
 
   const handlePixelClick = (x: number, y: number, existingPixel: Pixel | undefined) => {
     if (!connected) {
@@ -35,6 +41,17 @@ const Index = () => {
       return;
     }
     
+    // If pixel has a batch_id and is owned by someone else, show batch outbid modal
+    if (existingPixel?.batch_id && existingPixel.owner_wallet !== publicKey) {
+      setBatchOutbidModal({ 
+        open: true, 
+        batchId: existingPixel.batch_id, 
+        clickedPixel: existingPixel 
+      });
+      return;
+    }
+    
+    // Otherwise show regular purchase modal
     setPurchaseModal({ open: true, x, y, existingPixel });
   };
 
@@ -182,6 +199,16 @@ const Index = () => {
         endX={bulkModal.endX}
         endY={bulkModal.endY}
       />
+
+      {/* Batch outbid modal */}
+      {batchOutbidModal.clickedPixel && (
+        <OutbidBatchModal
+          open={batchOutbidModal.open}
+          onClose={() => setBatchOutbidModal({ open: false, batchId: '', clickedPixel: null })}
+          batchId={batchOutbidModal.batchId}
+          clickedPixel={batchOutbidModal.clickedPixel}
+        />
+      )}
     </div>
   );
 };

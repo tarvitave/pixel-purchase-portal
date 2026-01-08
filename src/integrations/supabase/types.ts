@@ -16,6 +16,7 @@ export type Database = {
     Tables: {
       pixels: {
         Row: {
+          batch_id: string | null
           color: string
           created_at: string
           id: string
@@ -28,6 +29,7 @@ export type Database = {
           y: number
         }
         Insert: {
+          batch_id?: string | null
           color?: string
           created_at?: string
           id?: string
@@ -40,6 +42,7 @@ export type Database = {
           y: number
         }
         Update: {
+          batch_id?: string | null
           color?: string
           created_at?: string
           id?: string
