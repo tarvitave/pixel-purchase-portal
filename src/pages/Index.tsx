@@ -135,29 +135,6 @@ const Index = () => {
             selectionMode={selectionMode}
           />
           
-          {/* Selection mode toggle */}
-          <div className="absolute top-4 right-20 flex bg-card/95 backdrop-blur-sm border border-border rounded-lg overflow-hidden">
-            <button
-              onClick={() => setSelectionMode('single')}
-              className={`px-3 py-2 text-xs font-medium transition-colors ${
-                selectionMode === 'single'
-                  ? 'bg-primary text-primary-foreground'
-                  : 'text-muted-foreground hover:bg-muted'
-              }`}
-            >
-              Single
-            </button>
-            <button
-              onClick={() => setSelectionMode('rectangle')}
-              className={`px-3 py-2 text-xs font-medium transition-colors ${
-                selectionMode === 'rectangle'
-                  ? 'bg-primary text-primary-foreground'
-                  : 'text-muted-foreground hover:bg-muted'
-              }`}
-            >
-              Rectangle
-            </button>
-          </div>
         </div>
 
         {/* Sidebar */}
