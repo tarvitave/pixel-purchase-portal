@@ -119,7 +119,15 @@ export function usePixels() {
   }, [pixels]);
 
   const getPixelColor = useCallback((x: number, y: number): string | undefined => {
-    return pixels[getPixelKey(x, y)]?.color;
+    const pixel = pixels[getPixelKey(x, y)];
+    if (!pixel) return undefined;
+    
+    // Purchased pixels without a link_url should display as white
+    if (pixel.owner_wallet && !pixel.link_url) {
+      return '#FFFFFF';
+    }
+    
+    return pixel.color;
   }, [pixels]);
 
   return {
