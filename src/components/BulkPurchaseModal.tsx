@@ -23,6 +23,13 @@ interface ExistingPixel {
   y: number;
   price_lamports: number;
   owner_wallet: string | null;
+  batch_id: string | null;
+}
+
+interface BatchInfo {
+  batch_id: string;
+  pixels: ExistingPixel[];
+  totalOutbidCost: number;
 }
 
 const BASE_PRICE_LAMPORTS = 100_000; // 0.0001 SOL per pixel
@@ -57,23 +64,48 @@ export function BulkPurchaseModal({
   const height = maxY - minY + 1;
   const pixelCount = width * height;
 
-  // Fetch existing pixels in the selection area
+  // Fetch existing pixels in the selection area AND full batches if overlapping
   useEffect(() => {
     if (!open) return;
     
     const fetchExistingPixels = async () => {
       setLoadingPrices(true);
       try {
-        const { data, error } = await supabase
+        // First, get pixels in the selection area
+        const { data: selectionPixels, error } = await supabase
           .from('pixels')
-          .select('x, y, price_lamports, owner_wallet')
+          .select('x, y, price_lamports, owner_wallet, batch_id')
           .gte('x', minX)
           .lte('x', maxX)
           .gte('y', minY)
           .lte('y', maxY);
         
         if (error) throw error;
-        setExistingPixels(data || []);
+        
+        // Find unique batch_ids from overlapping pixels
+        const batchIds = new Set<string>();
+        (selectionPixels || []).forEach(p => {
+          if (p.batch_id) batchIds.add(p.batch_id);
+        });
+        
+        // If there are batches, fetch ALL pixels from those batches
+        let allPixels = selectionPixels || [];
+        if (batchIds.size > 0) {
+          const { data: batchPixels, error: batchError } = await supabase
+            .from('pixels')
+            .select('x, y, price_lamports, owner_wallet, batch_id')
+            .in('batch_id', Array.from(batchIds));
+          
+          if (batchError) throw batchError;
+          
+          // Merge: use a map to avoid duplicates
+          const pixelMap = new Map<string, ExistingPixel>();
+          allPixels.forEach(p => pixelMap.set(`${p.x},${p.y}`, p));
+          (batchPixels || []).forEach(p => pixelMap.set(`${p.x},${p.y}`, p));
+          allPixels = Array.from(pixelMap.values());
+        }
+        
+        setExistingPixels(allPixels);
       } catch (err) {
         console.error('Failed to fetch existing pixels:', err);
         setExistingPixels([]);
@@ -85,30 +117,62 @@ export function BulkPurchaseModal({
     fetchExistingPixels();
   }, [open, minX, maxX, minY, maxY]);
 
-  // Calculate total cost considering existing pixels
-  const { totalCost, newPixelCount, outbidPixelCount, outbidCost, newCost } = (() => {
+  // Calculate total cost considering existing pixels AND full batches
+  const { totalCost, newPixelCount, outbidPixelCount, outbidCost, newCost, batchPixelsToInclude, affectedBatches } = (() => {
     const existingMap = new Map<string, ExistingPixel>();
     existingPixels.forEach(p => existingMap.set(`${p.x},${p.y}`, p));
+    
+    // Find pixels in selection area
+    const selectionKeys = new Set<string>();
+    for (let y = minY; y <= maxY; y++) {
+      for (let x = minX; x <= maxX; x++) {
+        selectionKeys.add(`${x},${y}`);
+      }
+    }
+    
+    // Find batch_ids that overlap with selection
+    const overlappingBatchIds = new Set<string>();
+    selectionKeys.forEach(key => {
+      const existing = existingMap.get(key);
+      if (existing?.batch_id && existing.owner_wallet) {
+        overlappingBatchIds.add(existing.batch_id);
+      }
+    });
+    
+    // Get all pixels from overlapping batches (including those outside selection)
+    const batchPixels: ExistingPixel[] = [];
+    existingPixels.forEach(p => {
+      if (p.batch_id && overlappingBatchIds.has(p.batch_id) && !selectionKeys.has(`${p.x},${p.y}`)) {
+        batchPixels.push(p);
+      }
+    });
     
     let newCount = 0;
     let outbidCount = 0;
     let totalNewCost = 0;
     let totalOutbidCost = 0;
     
+    // Calculate cost for selection area
     for (let y = minY; y <= maxY; y++) {
       for (let x = minX; x <= maxX; x++) {
         const existing = existingMap.get(`${x},${y}`);
         if (existing && existing.owner_wallet) {
-          // Owned pixel - needs outbid price (current price + 0.0001 SOL)
           outbidCount++;
           totalOutbidCost += existing.price_lamports + BASE_PRICE_LAMPORTS;
         } else {
-          // New pixel - base price
           newCount++;
           totalNewCost += BASE_PRICE_LAMPORTS;
         }
       }
     }
+    
+    // Add cost for batch pixels outside selection
+    batchPixels.forEach(p => {
+      if (p.owner_wallet) {
+        outbidCount++;
+        totalOutbidCost += p.price_lamports + BASE_PRICE_LAMPORTS;
+      }
+    });
     
     return {
       totalCost: totalNewCost + totalOutbidCost,
@@ -116,8 +180,13 @@ export function BulkPurchaseModal({
       outbidPixelCount: outbidCount,
       outbidCost: totalOutbidCost,
       newCost: totalNewCost,
+      batchPixelsToInclude: batchPixels,
+      affectedBatches: overlappingBatchIds.size,
     };
   })();
+
+  // Total pixels to purchase (selection + batch pixels outside selection)
+  const totalPixelsToPurchase = pixelCount + batchPixelsToInclude.length;
 
   const extractColorsFromImage = (imageSrc: string) => {
     const img = new Image();
@@ -220,7 +289,7 @@ export function BulkPurchaseModal({
 
       toast.success('Payment confirmed! Placing pixels...');
 
-      // Build pixels array
+      // Build pixels array from selection
       const pixels: Array<{ x: number; y: number; color: string }> = [];
       for (let y = 0; y < height; y++) {
         for (let x = 0; x < width; x++) {
@@ -232,6 +301,15 @@ export function BulkPurchaseModal({
         }
       }
 
+      // Add batch pixels that are outside the selection (keep their existing color)
+      batchPixelsToInclude.forEach(p => {
+        pixels.push({
+          x: p.x,
+          y: p.y,
+          color: '#000000', // Placeholder - backend will keep existing color for these
+        });
+      });
+
       // Call the edge function for bulk placement
       const { data, error } = await supabase.functions.invoke('place-pixels-bulk', {
         body: {
@@ -241,6 +319,7 @@ export function BulkPurchaseModal({
           transaction_signature: transactionSignature,
           network: 'mainnet-beta',
           link_url: linkUrl || null,
+          include_batch_pixels: batchPixelsToInclude.length > 0,
         },
       });
 
@@ -255,7 +334,7 @@ export function BulkPurchaseModal({
         return;
       }
 
-      toast.success(`${pixelCount} pixels placed successfully! 🎨`);
+      toast.success(`${totalPixelsToPurchase} pixels placed successfully! 🎨`);
       onClose();
     } catch (error) {
       console.error('Purchase error:', error);
@@ -384,8 +463,26 @@ export function BulkPurchaseModal({
             </div>
           )}
 
-          {/* Outbid warning */}
-          {outbidPixelCount > 0 && (
+          {/* Batch warning */}
+          {batchPixelsToInclude.length > 0 && (
+            <div className="p-4 bg-orange-500/20 rounded-lg border border-orange-500/50">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="w-5 h-5 text-orange-400 flex-shrink-0 mt-0.5" />
+                <div className="text-sm">
+                  <p className="font-medium text-orange-300">
+                    Selection overlaps with {affectedBatches} existing batch{affectedBatches > 1 ? 'es' : ''}
+                  </p>
+                  <p className="text-orange-200/80 mt-1">
+                    You must purchase all {batchPixelsToInclude.length + outbidPixelCount} pixels from the overlapping batch{affectedBatches > 1 ? 'es' : ''}.
+                    Outbid cost = previous price + 0.0001 SOL per pixel.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Outbid warning (when no batch but has owned pixels) */}
+          {outbidPixelCount > 0 && batchPixelsToInclude.length === 0 && (
             <div className="p-4 bg-orange-500/20 rounded-lg border border-orange-500/50">
               <div className="flex items-start gap-3">
                 <AlertTriangle className="w-5 h-5 text-orange-400 flex-shrink-0 mt-0.5" />
