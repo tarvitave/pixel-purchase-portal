@@ -1,7 +1,7 @@
-import { useState, useRef, ChangeEvent } from 'react';
+import { useState, useRef, ChangeEvent, DragEvent } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Upload, X, Image as ImageIcon } from 'lucide-react';
+import { Upload, X, Image as ImageIcon, GripVertical } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface ImagePlacementPanelProps {
@@ -100,6 +100,35 @@ export function ImagePlacementPanel({ onImageReady, onCancel, isActive }: ImageP
     onCancel();
   };
 
+  const handleDragStart = (e: DragEvent<HTMLDivElement>) => {
+    if (!imagePreview || !imageDimensions) return;
+    
+    // Set the drag data
+    const data: ImagePlacementData = {
+      imageSrc: imagePreview,
+      linkUrl,
+      width: imageDimensions.width,
+      height: imageDimensions.height,
+    };
+    e.dataTransfer.setData('application/json', JSON.stringify(data));
+    e.dataTransfer.effectAllowed = 'copy';
+    
+    // Create a smaller drag image
+    const dragImg = document.createElement('div');
+    dragImg.style.width = '60px';
+    dragImg.style.height = '60px';
+    dragImg.style.background = `url(${imagePreview}) center/contain no-repeat`;
+    dragImg.style.border = '2px solid #a855f7';
+    dragImg.style.borderRadius = '8px';
+    dragImg.style.position = 'absolute';
+    dragImg.style.top = '-1000px';
+    document.body.appendChild(dragImg);
+    e.dataTransfer.setDragImage(dragImg, 30, 30);
+    
+    // Clean up after drag starts
+    setTimeout(() => document.body.removeChild(dragImg), 0);
+  };
+
   return (
     <div className="bg-card border border-border rounded-xl p-4">
       <div className="flex items-center justify-between mb-3">
@@ -107,7 +136,7 @@ export function ImagePlacementPanel({ onImageReady, onCancel, isActive }: ImageP
           <ImageIcon className="w-4 h-4 text-primary" />
           Place Image
         </h3>
-        {isActive && (
+        {(isActive || imagePreview) && (
           <Button variant="ghost" size="sm" onClick={handleClear} className="h-6 w-6 p-0">
             <X className="w-4 h-4" />
           </Button>
@@ -156,15 +185,26 @@ export function ImagePlacementPanel({ onImageReady, onCancel, isActive }: ImageP
           className="text-xs"
         />
 
-        {/* Preview */}
+        {/* Draggable Preview */}
         {imagePreview && imageDimensions && (
           <div className="space-y-2">
-            <div className="relative aspect-square w-full max-h-32 overflow-hidden rounded-lg border border-border">
+            <div 
+              draggable
+              onDragStart={handleDragStart}
+              className="relative aspect-square w-full max-h-32 overflow-hidden rounded-lg border-2 border-dashed border-primary/50 cursor-grab active:cursor-grabbing hover:border-primary transition-colors group"
+            >
               <img
                 src={imagePreview}
                 alt="Preview"
-                className="w-full h-full object-contain bg-muted"
+                className="w-full h-full object-contain bg-muted pointer-events-none"
+                draggable={false}
               />
+              <div className="absolute inset-0 bg-primary/10 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                <div className="bg-card/90 backdrop-blur-sm px-2 py-1 rounded flex items-center gap-1 text-xs text-primary">
+                  <GripVertical className="w-3 h-3" />
+                  Drag to canvas
+                </div>
+              </div>
             </div>
             <div className="text-xs text-muted-foreground text-center">
               {imageDimensions.width} × {imageDimensions.height} pixels
@@ -172,14 +212,15 @@ export function ImagePlacementPanel({ onImageReady, onCancel, isActive }: ImageP
           </div>
         )}
 
-        {/* Confirm button */}
+        {/* Alternative: Click to place button */}
         {imagePreview && imageDimensions && (
           <Button
             onClick={handleConfirm}
+            variant="outline"
             className="w-full"
             size="sm"
           >
-            Click Canvas to Place
+            Or Click Canvas to Place
           </Button>
         )}
 

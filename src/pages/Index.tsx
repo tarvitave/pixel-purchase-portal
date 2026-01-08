@@ -98,6 +98,26 @@ const Index = () => {
     setBulkModal({ open: true, startX, startY, endX, endY });
   };
 
+  const handleImageDrop = (x: number, y: number, imageData: ImagePlacementData) => {
+    if (!connected) {
+      toast.error('Connect your Phantom wallet to place pixels');
+      return;
+    }
+    
+    const endX = x + imageData.width - 1;
+    const endY = y + imageData.height - 1;
+    
+    setBulkModal({ 
+      open: true, 
+      startX: x, 
+      startY: y, 
+      endX, 
+      endY,
+      preloadedImage: imageData.imageSrc,
+      preloadedLinkUrl: imageData.linkUrl,
+    });
+  };
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <Header pixelCount={pixelCount} />
@@ -110,6 +130,7 @@ const Index = () => {
             selectedColor={selectedColor}
             onPixelClick={handlePixelClick}
             onRectangleSelect={handleRectangleSelect}
+            onImageDrop={handleImageDrop}
             walletConnected={connected}
             selectionMode={selectionMode}
           />

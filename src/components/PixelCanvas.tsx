@@ -1,10 +1,12 @@
-import { useRef, useEffect, useState, useCallback } from 'react';
+import { useRef, useEffect, useState, useCallback, DragEvent } from 'react';
 import { usePixels, type Pixel, getMinBidLamports, lamportsToSol } from '@/hooks/usePixels';
+import type { ImagePlacementData } from './ImagePlacementPanel';
 
 interface PixelCanvasProps {
   selectedColor: string;
   onPixelClick: (x: number, y: number, existingPixel: Pixel | undefined) => void;
   onRectangleSelect?: (startX: number, startY: number, endX: number, endY: number) => void;
+  onImageDrop?: (x: number, y: number, imageData: ImagePlacementData) => void;
   walletConnected: boolean;
   selectionMode?: 'single' | 'rectangle';
 }
@@ -19,6 +21,7 @@ export function PixelCanvas({
   selectedColor, 
   onPixelClick, 
   onRectangleSelect,
+  onImageDrop,
   walletConnected,
   selectionMode = 'single'
 }: PixelCanvasProps) {
@@ -34,6 +37,7 @@ export function PixelCanvas({
   const [selectionStart, setSelectionStart] = useState<{ x: number; y: number } | null>(null);
   const [selectionEnd, setSelectionEnd] = useState<{ x: number; y: number } | null>(null);
   const [minimapExpanded, setMinimapExpanded] = useState(true);
+  const [isDragOver, setIsDragOver] = useState(false);
   
   const { pixels, loading, getPixel, getPixelColor } = usePixels();
 
@@ -394,6 +398,40 @@ export function PixelCanvas({
     setZoom(newZoom);
   };
 
+  // Drag and drop handlers for image placement
+  const handleDragOver = (e: DragEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+    setIsDragOver(true);
+    
+    // Update hovered pixel for preview
+    const pixel = screenToPixel(e.clientX, e.clientY);
+    setHoveredPixel(pixel);
+  };
+
+  const handleDragLeave = () => {
+    setIsDragOver(false);
+  };
+
+  const handleDrop = (e: DragEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    
+    const jsonData = e.dataTransfer.getData('application/json');
+    if (!jsonData || !onImageDrop) return;
+    
+    try {
+      const imageData: ImagePlacementData = JSON.parse(jsonData);
+      const pixel = screenToPixel(e.clientX, e.clientY);
+      
+      if (pixel) {
+        onImageDrop(pixel.x, pixel.y, imageData);
+      }
+    } catch (err) {
+      console.error('Failed to parse drop data:', err);
+    }
+  };
+
   // Get hovered pixel info for tooltip
   const hoveredPixelData = hoveredPixel ? getPixel(hoveredPixel.x, hoveredPixel.y) : undefined;
 
@@ -410,8 +448,20 @@ export function PixelCanvas({
         onPointerCancel={handlePointerCancel}
         onPointerLeave={handlePointerLeave}
         onWheel={handleWheel}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
         className={(isDragging ? 'cursor-grabbing' : 'cursor-crosshair') + ' touch-none select-none'}
       />
+      
+      {/* Drop zone overlay */}
+      {isDragOver && (
+        <div className="absolute inset-0 pointer-events-none bg-primary/10 border-4 border-dashed border-primary animate-pulse flex items-center justify-center">
+          <div className="bg-card/90 backdrop-blur-sm px-4 py-2 rounded-lg text-primary font-medium">
+            Drop to place image at ({hoveredPixel?.x ?? 0}, {hoveredPixel?.y ?? 0})
+          </div>
+        </div>
+      )}
       
       {/* Loading overlay */}
       {loading && (
