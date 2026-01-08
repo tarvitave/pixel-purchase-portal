@@ -485,8 +485,12 @@ export function PixelCanvas({
                 <span className="text-xs font-mono">{hoveredPixelData.color}</span>
               </div>
               {hoveredPixelData.link_url && (
-                <div className="mb-2 p-2 bg-primary/10 rounded text-xs text-primary">
-                  🔗 Click to visit link
+                <div className="mb-2 p-2 bg-primary/10 rounded border border-primary/20">
+                  <div className="text-xs text-muted-foreground mb-1">🔗 Link</div>
+                  <div className="text-xs text-primary font-medium break-all max-w-[180px]">
+                    {hoveredPixelData.link_url}
+                  </div>
+                  <div className="text-[10px] text-muted-foreground mt-1">Click pixel to visit</div>
                 </div>
               )}
               <div className="text-xs text-muted-foreground mb-1">Current price</div>
