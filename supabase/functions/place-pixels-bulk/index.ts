@@ -218,24 +218,62 @@ serve(async (req) => {
     }
 
     // Fetch existing pixels to calculate required outbid prices (include color and batch_id)
-    const { data: existingPixels, error: fetchError } = await supabase
-      .from('pixels')
-      .select('x, y, price_lamports, owner_wallet, color, batch_id')
-      .or(pixels.map(p => `and(x.eq.${p.x},y.eq.${p.y})`).join(','));
+    // IMPORTANT: backend caps results at 1000 per call, so we page.
+    const requestedKeys = new Set(pixels.map((p) => `${p.x},${p.y}`));
 
-    if (fetchError) {
-      console.error('Error fetching existing pixels:', fetchError);
-      return new Response(
-        JSON.stringify({ error: 'Failed to check existing pixels' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    let minX = Infinity,
+      maxX = -Infinity,
+      minY = Infinity,
+      maxY = -Infinity;
+
+    for (const p of pixels) {
+      minX = Math.min(minX, p.x);
+      maxX = Math.max(maxX, p.x);
+      minY = Math.min(minY, p.y);
+      maxY = Math.max(maxY, p.y);
     }
 
-    // Build map of existing pixels
-    const existingMap = new Map<string, { price_lamports: number; owner_wallet: string | null; color: string; batch_id: string | null }>();
-    (existingPixels || []).forEach(p => {
-      existingMap.set(`${p.x},${p.y}`, { price_lamports: p.price_lamports, owner_wallet: p.owner_wallet, color: p.color, batch_id: p.batch_id });
-    });
+    const PAGE_SIZE = 1000;
+    const existingMap = new Map<
+      string,
+      { price_lamports: number; owner_wallet: string | null; color: string; batch_id: string | null; transaction_signature?: string | null }
+    >();
+
+    let from = 0;
+    while (true) {
+      const { data, error: fetchError } = await supabase
+        .from('pixels')
+        .select('x, y, price_lamports, owner_wallet, color, batch_id, transaction_signature')
+        .gte('x', minX)
+        .lte('x', maxX)
+        .gte('y', minY)
+        .lte('y', maxY)
+        .range(from, from + PAGE_SIZE - 1);
+
+      if (fetchError) {
+        console.error('Error fetching existing pixels:', fetchError);
+        return new Response(
+          JSON.stringify({ error: 'Failed to check existing pixels' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const page = data || [];
+      for (const row of page) {
+        const key = `${row.x},${row.y}`;
+        if (!requestedKeys.has(key)) continue;
+        existingMap.set(key, {
+          price_lamports: row.price_lamports,
+          owner_wallet: row.owner_wallet,
+          color: row.color,
+          batch_id: row.batch_id,
+          transaction_signature: row.transaction_signature,
+        });
+      }
+
+      if (page.length < PAGE_SIZE) break;
+      from += PAGE_SIZE;
+    }
 
     // Calculate required price - base for new, current + base for outbidding others
     // Own pixels are FREE to update
@@ -335,15 +373,22 @@ serve(async (req) => {
     // Prepare pixel data for bulk upsert with correct prices per pixel
     const pixelData = pixels.map((pixel, index) => {
       const existing = existingMap.get(`${pixel.x},${pixel.y}`);
-      const pixelPrice = existing && existing.owner_wallet
-        ? existing.price_lamports + BASE_PRICE_LAMPORTS
-        : BASE_PRICE_LAMPORTS;
-      
+
+      // Pricing rules:
+      // - New pixel: base price
+      // - Outbid someone else: previous price + base price
+      // - Update own pixel: FREE (keep previous price)
+      const pixelPrice = !existing?.owner_wallet
+        ? BASE_PRICE_LAMPORTS
+        : existing.owner_wallet === wallet
+          ? existing.price_lamports
+          : existing.price_lamports + BASE_PRICE_LAMPORTS;
+
       // For batch pixels being taken over, keep their existing color if placeholder was sent
-      const finalColor = (pixel.color === '#000000' && existing?.color) 
-        ? existing.color 
+      const finalColor = (pixel.color === '#000000' && existing?.color)
+        ? existing.color
         : pixel.color;
-      
+
       return {
         x: pixel.x,
         y: pixel.y,
@@ -351,7 +396,9 @@ serve(async (req) => {
         owner_wallet: wallet,
         price_lamports: pixelPrice,
         // Only first pixel gets the transaction signature for tracking
-        transaction_signature: index === 0 ? transaction_signature : null,
+        // (and preserve existing signature on free updates)
+        transaction_signature:
+          index === 0 ? (transaction_signature || existing?.transaction_signature || null) : null,
         link_url: link_url || null,
         batch_id: batchId,
       };
