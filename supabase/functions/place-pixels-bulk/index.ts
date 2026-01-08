@@ -216,13 +216,46 @@ serve(async (req) => {
       );
     }
 
-    // Calculate required price (base price per pixel)
-    const requiredPrice = pixels.length * BASE_PRICE_LAMPORTS;
+    // Fetch existing pixels to calculate required outbid prices
+    const pixelCoords = pixels.map(p => `(${p.x},${p.y})`);
+    const { data: existingPixels, error: fetchError } = await supabase
+      .from('pixels')
+      .select('x, y, price_lamports, owner_wallet')
+      .or(pixels.map(p => `and(x.eq.${p.x},y.eq.${p.y})`).join(','));
+
+    if (fetchError) {
+      console.error('Error fetching existing pixels:', fetchError);
+      return new Response(
+        JSON.stringify({ error: 'Failed to check existing pixels' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Build map of existing pixels
+    const existingMap = new Map<string, { price_lamports: number; owner_wallet: string | null }>();
+    (existingPixels || []).forEach(p => {
+      existingMap.set(`${p.x},${p.y}`, { price_lamports: p.price_lamports, owner_wallet: p.owner_wallet });
+    });
+
+    // Calculate required price - base for new, 10% more for owned
+    let requiredPrice = 0;
+    for (const pixel of pixels) {
+      const existing = existingMap.get(`${pixel.x},${pixel.y}`);
+      if (existing && existing.owner_wallet) {
+        // Outbid: 10% more than current price
+        requiredPrice += Math.floor(existing.price_lamports * 1.1);
+      } else {
+        // New pixel: base price
+        requiredPrice += BASE_PRICE_LAMPORTS;
+      }
+    }
+
+    console.log(`Required price: ${requiredPrice} lamports, provided: ${price_lamports} lamports`);
 
     if (price_lamports < requiredPrice) {
       return new Response(
         JSON.stringify({ 
-          error: `Insufficient payment. Required: ${requiredPrice} lamports for ${pixels.length} pixels`,
+          error: `Insufficient payment. Required: ${requiredPrice} lamports for ${pixels.length} pixels (includes outbid premiums)`,
           required_price: requiredPrice 
         }),
         { 
@@ -282,19 +315,25 @@ serve(async (req) => {
     // Generate a unique batch_id for this purchase to group all pixels together
     const batchId = crypto.randomUUID();
     
-    // Prepare pixel data for bulk upsert
-    const pricePerPixel = Math.floor(price_lamports / pixels.length);
-    const pixelData = pixels.map((pixel, index) => ({
-      x: pixel.x,
-      y: pixel.y,
-      color: pixel.color,
-      owner_wallet: wallet,
-      price_lamports: pricePerPixel,
-      // Only first pixel gets the transaction signature for tracking
-      transaction_signature: index === 0 ? transaction_signature : null,
-      link_url: link_url || null,
-      batch_id: batchId,
-    }));
+    // Prepare pixel data for bulk upsert with correct prices per pixel
+    const pixelData = pixels.map((pixel, index) => {
+      const existing = existingMap.get(`${pixel.x},${pixel.y}`);
+      const pixelPrice = existing && existing.owner_wallet
+        ? Math.floor(existing.price_lamports * 1.1)
+        : BASE_PRICE_LAMPORTS;
+      
+      return {
+        x: pixel.x,
+        y: pixel.y,
+        color: pixel.color,
+        owner_wallet: wallet,
+        price_lamports: pixelPrice,
+        // Only first pixel gets the transaction signature for tracking
+        transaction_signature: index === 0 ? transaction_signature : null,
+        link_url: link_url || null,
+        batch_id: batchId,
+      };
+    });
 
     // Bulk upsert pixels
     const { error: upsertError } = await supabase
