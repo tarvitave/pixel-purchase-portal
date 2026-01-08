@@ -1,12 +1,26 @@
 import { Button } from '@/components/ui/button';
 import { usePhantom } from '@/hooks/usePhantom';
-import { Wallet, LogOut, ExternalLink } from 'lucide-react';
+import { Wallet, LogOut, ExternalLink, RefreshCw, ChevronDown } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 export function WalletButton() {
   const { connected, publicKey, connecting, connect, disconnect, isPhantomInstalled } = usePhantom();
 
   const truncateAddress = (address: string) => {
     return `${address.slice(0, 4)}...${address.slice(-4)}`;
+  };
+
+  const handleSwitchWallet = async () => {
+    await disconnect();
+    // Small delay to ensure disconnect completes
+    setTimeout(() => {
+      connect();
+    }, 100);
   };
 
   if (!isPhantomInstalled) {
@@ -23,22 +37,27 @@ export function WalletButton() {
 
   if (connected && publicKey) {
     return (
-      <div className="flex items-center gap-3">
-        <div className="bg-card border border-border rounded-lg px-4 py-2 flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-accent animate-pulse" />
-          <span className="font-mono text-sm text-foreground">
-            {truncateAddress(publicKey)}
-          </span>
-        </div>
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={disconnect}
-          className="border-border hover:bg-destructive/20 hover:border-destructive"
-        >
-          <LogOut className="w-4 h-4" />
-        </Button>
-      </div>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="outline" className="border-border">
+            <div className="w-2 h-2 rounded-full bg-accent animate-pulse mr-2" />
+            <span className="font-mono text-sm">
+              {truncateAddress(publicKey)}
+            </span>
+            <ChevronDown className="w-4 h-4 ml-2" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem onClick={handleSwitchWallet}>
+            <RefreshCw className="w-4 h-4 mr-2" />
+            Switch Wallet
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={disconnect} className="text-destructive">
+            <LogOut className="w-4 h-4 mr-2" />
+            Disconnect
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     );
   }
 
