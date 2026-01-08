@@ -393,6 +393,25 @@ export function PixelCanvas({
         >
           ⌂
         </button>
+        <button
+          onClick={() => {
+            // Jump to top-left where recent pixels are
+            const targetZoom = 10;
+            setZoom(targetZoom);
+            const canvas = canvasRef.current;
+            if (canvas) {
+              // Center on coordinates (27, 29) - where recent pixels are
+              setOffset({
+                x: canvas.width / 2 - 27 * targetZoom,
+                y: canvas.height / 2 - 29 * targetZoom,
+              });
+            }
+          }}
+          className="w-10 h-10 bg-card border border-border rounded-lg flex items-center justify-center text-foreground hover:bg-muted transition-colors text-xs"
+          title="Jump to recent pixels"
+        >
+          📍
+        </button>
       </div>
 
       {/* Pixel info tooltip */}
