@@ -563,7 +563,7 @@ export function PixelCanvas({
               <div className="text-xs text-muted-foreground mb-1">Status</div>
               <div className="text-sm text-accent">Available!</div>
               <div className="text-xs text-muted-foreground mt-2">Price</div>
-              <div className="text-sm text-primary font-bold">0.001 SOL</div>
+              <div className="text-sm text-primary font-bold">0.00001 SOL</div>
             </>
           )}
         </div>
