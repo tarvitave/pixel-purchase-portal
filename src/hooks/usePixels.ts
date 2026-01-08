@@ -11,6 +11,7 @@ export interface Pixel {
   price_lamports: number;
   transaction_signature: string | null;
   link_url: string | null;
+  image_url: string | null;
   batch_id: string | null;
   created_at: string;
   updated_at: string;
@@ -132,8 +133,8 @@ export function usePixels() {
     const pixel = pixels[getPixelKey(x, y)];
     if (!pixel) return undefined;
     
-    // Purchased pixels without a link_url should display as white
-    if (pixel.owner_wallet && !pixel.link_url) {
+    // Purchased pixels without an image_url should display as white
+    if (pixel.owner_wallet && !pixel.image_url) {
       return '#FFFFFF';
     }
     

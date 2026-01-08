@@ -20,6 +20,7 @@ export type Database = {
           color: string
           created_at: string
           id: string
+          image_url: string | null
           link_url: string | null
           owner_wallet: string | null
           price_lamports: number
@@ -33,6 +34,7 @@ export type Database = {
           color?: string
           created_at?: string
           id?: string
+          image_url?: string | null
           link_url?: string | null
           owner_wallet?: string | null
           price_lamports?: number
@@ -46,6 +48,7 @@ export type Database = {
           color?: string
           created_at?: string
           id?: string
+          image_url?: string | null
           link_url?: string | null
           owner_wallet?: string | null
           price_lamports?: number

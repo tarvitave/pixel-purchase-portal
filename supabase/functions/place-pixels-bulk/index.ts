@@ -28,6 +28,7 @@ interface PlacePixelsBulkRequest {
   transaction_signature: string;
   network: 'mainnet-beta';
   link_url?: string | null;
+  image_url?: string | null;
   include_batch_pixels?: boolean;
 }
 
@@ -169,13 +170,14 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
     
     const body: PlacePixelsBulkRequest = await req.json();
-    const { pixels, price_lamports, wallet, transaction_signature, link_url } = body;
+    const { pixels, price_lamports, wallet, transaction_signature, link_url, image_url } = body;
 
     console.log('Bulk place pixels request:', { 
       pixelCount: pixels.length, 
       price_lamports, 
       wallet, 
-      link_url: link_url ? 'provided' : 'none'
+      link_url: link_url ? 'provided' : 'none',
+      image_url: image_url ? 'provided' : 'none'
     });
 
     // Validate inputs
@@ -400,6 +402,7 @@ serve(async (req) => {
         transaction_signature:
           index === 0 ? (transaction_signature || existing?.transaction_signature || null) : null,
         link_url: link_url || null,
+        image_url: image_url || null, // Store the image source URL
         batch_id: batchId,
       };
     });

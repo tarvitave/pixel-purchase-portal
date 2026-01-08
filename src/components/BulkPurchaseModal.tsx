@@ -423,6 +423,7 @@ export function BulkPurchaseModal({
           transaction_signature: transactionSignature,
           network: 'mainnet-beta',
           link_url: linkUrl || null,
+          image_url: imageUrl || imagePreview || null, // Pass the image source for storage
         },
       });
 
