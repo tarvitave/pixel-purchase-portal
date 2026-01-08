@@ -18,11 +18,11 @@ const FAQ = () => {
     },
     {
       question: "What is the pricing for pixels?",
-      answer: "The base price for unclaimed pixels starts at 0.0001 SOL per pixel. If you want to purchase pixels that are already owned by someone else, you must outbid by paying the previous price plus 0.0001 SOL per pixel."
+      answer: "The base price for unclaimed pixels starts at 0.00001 SOL per pixel. If you want to purchase pixels that are already owned by someone else, you must outbid by paying the previous price plus 0.00001 SOL per pixel."
     },
     {
       question: "What happens when I outbid someone?",
-      answer: "When you outbid a pixel that's part of a batch purchase, you must buy all pixels from that original batch. The price will be the previous cost per pixel plus 0.0001 SOL, multiplied by the number of pixels in the batch."
+      answer: "When you outbid a pixel that's part of a batch purchase, you must buy all pixels from that original batch. The price will be the previous cost per pixel plus 0.00001 SOL, multiplied by the number of pixels in the batch."
     },
     {
       question: "Can I add a link to my pixels?",
