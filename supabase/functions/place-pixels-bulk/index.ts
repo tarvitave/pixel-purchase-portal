@@ -8,8 +8,8 @@ const corsHeaders = {
 
 const BASE_PRICE_LAMPORTS = 100_000; // 0.0001 SOL per pixel
 
-// Solana RPC endpoint (mainnet only)
-const SOLANA_RPC = "https://api.mainnet-beta.solana.com";
+// Solana RPC endpoint - use custom RPC if configured, otherwise fallback to public
+const SOLANA_RPC = Deno.env.get('SOLANA_RPC_URL') || "https://api.mainnet-beta.solana.com";
 
 interface PixelData {
   x: number;
