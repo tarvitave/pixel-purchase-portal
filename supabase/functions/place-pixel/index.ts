@@ -210,9 +210,9 @@ serve(async (req) => {
     let requiredPrice = BASE_PRICE_LAMPORTS;
     
     if (existingPixel) {
-      // If pixel exists and is owned by someone else, require 10% more
+      // If pixel exists and is owned by someone else, require current price + base price
       if (existingPixel.owner_wallet && existingPixel.owner_wallet !== wallet) {
-        requiredPrice = Math.floor(existingPixel.price_lamports * 1.1);
+        requiredPrice = existingPixel.price_lamports + BASE_PRICE_LAMPORTS;
       } else if (existingPixel.owner_wallet === wallet) {
         // Owner can update their own pixel for free (just updating color)
         requiredPrice = 0;

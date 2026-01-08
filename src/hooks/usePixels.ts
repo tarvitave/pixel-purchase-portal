@@ -33,8 +33,8 @@ export function solToLamports(sol: number): number {
 
 export function getMinBidLamports(currentPriceLamports: number | null): number {
   if (!currentPriceLamports) return BASE_PRICE_LAMPORTS;
-  // Minimum bid is 10% more than current price
-  return Math.floor(currentPriceLamports * 1.1);
+  // Minimum bid is current price + base price (0.0001 SOL)
+  return currentPriceLamports + BASE_PRICE_LAMPORTS;
 }
 
 export function usePixels() {

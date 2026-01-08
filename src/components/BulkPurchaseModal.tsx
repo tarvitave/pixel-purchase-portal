@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 import { usePhantom } from '@/hooks/usePhantom';
 import { useSolanaTransaction } from '@/hooks/useSolanaTransaction';
-import { lamportsToSol, getMinBidLamports } from '@/hooks/usePixels';
+import { lamportsToSol } from '@/hooks/usePixels';
 import { supabase } from '@/integrations/supabase/client';
 import { Upload, AlertTriangle } from 'lucide-react';
 
@@ -99,9 +99,9 @@ export function BulkPurchaseModal({
       for (let x = minX; x <= maxX; x++) {
         const existing = existingMap.get(`${x},${y}`);
         if (existing && existing.owner_wallet) {
-          // Owned pixel - needs outbid price (10% more)
+          // Owned pixel - needs outbid price (current price + 0.0001 SOL)
           outbidCount++;
-          totalOutbidCost += getMinBidLamports(existing.price_lamports);
+          totalOutbidCost += existing.price_lamports + BASE_PRICE_LAMPORTS;
         } else {
           // New pixel - base price
           newCount++;
@@ -394,11 +394,7 @@ export function BulkPurchaseModal({
                     {outbidPixelCount} pixel{outbidPixelCount > 1 ? 's are' : ' is'} already owned
                   </p>
                   <p className="text-orange-200/80 mt-1">
-                    You'll need to outbid at 10% above current price. This adds{' '}
-                    <span className="font-mono font-medium">
-                      {lamportsToSol(outbidCost - outbidPixelCount * BASE_PRICE_LAMPORTS).toFixed(4)} SOL
-                    </span>{' '}
-                    to the base cost.
+                    Outbid cost = previous price + 0.0001 SOL per pixel.
                   </p>
                 </div>
               </div>
@@ -426,7 +422,7 @@ export function BulkPurchaseModal({
                 {outbidPixelCount > 0 && (
                   <div className="flex justify-between items-center text-sm">
                     <span className="text-muted-foreground">
-                      {outbidPixelCount} outbid pixel{outbidPixelCount > 1 ? 's' : ''} (10% premium)
+                      {outbidPixelCount} outbid pixel{outbidPixelCount > 1 ? 's' : ''} (+0.0001 SOL each)
                     </span>
                     <span className="font-mono text-orange-400">
                       {lamportsToSol(outbidCost).toFixed(4)} SOL
