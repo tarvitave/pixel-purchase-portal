@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Header } from '@/components/Header';
+import { Footer } from '@/components/Footer';
 import { PixelCanvas } from '@/components/PixelCanvas';
 import { ColorPicker } from '@/components/ColorPicker';
 import { PurchaseModal } from '@/components/PurchaseModal';
@@ -209,6 +210,8 @@ const Index = () => {
           clickedPixel={batchOutbidModal.clickedPixel}
         />
       )}
+
+      <Footer />
     </div>
   );
 };
