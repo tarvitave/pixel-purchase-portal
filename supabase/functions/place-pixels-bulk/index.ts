@@ -296,6 +296,14 @@ serve(async (req) => {
       );
     }
 
+    // Prevent user from paying to themselves (treasury cannot purchase pixels)
+    if (wallet === treasuryWallet) {
+      return new Response(
+        JSON.stringify({ error: 'Treasury wallet cannot purchase pixels. Please use a different wallet.' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // Verify the Solana transaction
     const verification = await verifyTransaction(
       transaction_signature,
