@@ -100,18 +100,11 @@ export function usePhantom(): UsePhantomReturn {
   }, []);
 
   const disconnect = useCallback(async () => {
-    const provider = window.solana;
-    
-    if (provider) {
-      try {
-        await provider.disconnect();
-        setConnected(false);
-        setPublicKey(null);
-        toast.success('Wallet disconnected');
-      } catch (error) {
-        console.error('Failed to disconnect wallet:', error);
-      }
-    }
+    // Soft disconnect: only clear app state without revoking Phantom access
+    // This allows quick reconnection without requiring wallet approval again
+    setConnected(false);
+    setPublicKey(null);
+    toast.success('Wallet disconnected');
   }, []);
 
   const signMessage = useCallback(async (message: string): Promise<string | null> => {
