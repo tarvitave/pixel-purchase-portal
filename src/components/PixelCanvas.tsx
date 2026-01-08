@@ -347,7 +347,12 @@ export function PixelCanvas({
           const existingPixel = getPixel(clicked.x, clicked.y);
           // If pixel has a link, open it instead of showing purchase modal
           if (existingPixel?.link_url) {
-            window.open(existingPixel.link_url, '_blank', 'noopener,noreferrer');
+            let url = existingPixel.link_url;
+            // Add protocol if missing
+            if (!url.startsWith('http://') && !url.startsWith('https://')) {
+              url = 'https://' + url;
+            }
+            window.open(url, '_blank', 'noopener,noreferrer');
             return;
           }
           onPixelClick(clicked.x, clicked.y, existingPixel);
