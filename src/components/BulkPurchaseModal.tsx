@@ -118,7 +118,17 @@ export function BulkPurchaseModal({
   }, [open, minX, maxX, minY, maxY]);
 
   // Calculate total cost considering existing pixels AND full batches
-  const { totalCost, newPixelCount, outbidPixelCount, outbidCost, newCost, batchPixelsToInclude, affectedBatches } = (() => {
+  const { 
+    totalCost, 
+    newPixelCount, 
+    outbidPixelCountInSelection, 
+    outbidCostInSelection, 
+    newCost, 
+    batchPixelsToInclude,
+    batchPixelsCost,
+    affectedBatches,
+    totalBatchSize,
+  } = (() => {
     const existingMap = new Map<string, ExistingPixel>();
     existingPixels.forEach(p => existingMap.set(`${p.x},${p.y}`, p));
     
@@ -130,35 +140,44 @@ export function BulkPurchaseModal({
       }
     }
     
-    // Find batch_ids that overlap with selection
+    // Find batch_ids that overlap with selection and count total batch pixels
     const overlappingBatchIds = new Set<string>();
+    let batchPixelsInSelection = 0;
     selectionKeys.forEach(key => {
       const existing = existingMap.get(key);
       if (existing?.batch_id && existing.owner_wallet) {
         overlappingBatchIds.add(existing.batch_id);
+        batchPixelsInSelection++;
       }
     });
     
     // Get all pixels from overlapping batches (including those outside selection)
     const batchPixels: ExistingPixel[] = [];
+    let batchPixelsTotalCost = 0;
     existingPixels.forEach(p => {
       if (p.batch_id && overlappingBatchIds.has(p.batch_id) && !selectionKeys.has(`${p.x},${p.y}`)) {
         batchPixels.push(p);
+        if (p.owner_wallet) {
+          batchPixelsTotalCost += p.price_lamports + BASE_PRICE_LAMPORTS;
+        }
       }
     });
     
+    // Total batch size = pixels in selection + pixels outside selection
+    const totalBatchPixels = batchPixelsInSelection + batchPixels.length;
+    
     let newCount = 0;
-    let outbidCount = 0;
+    let outbidCountInSel = 0;
     let totalNewCost = 0;
-    let totalOutbidCost = 0;
+    let totalOutbidCostInSel = 0;
     
     // Calculate cost for selection area
     for (let y = minY; y <= maxY; y++) {
       for (let x = minX; x <= maxX; x++) {
         const existing = existingMap.get(`${x},${y}`);
         if (existing && existing.owner_wallet) {
-          outbidCount++;
-          totalOutbidCost += existing.price_lamports + BASE_PRICE_LAMPORTS;
+          outbidCountInSel++;
+          totalOutbidCostInSel += existing.price_lamports + BASE_PRICE_LAMPORTS;
         } else {
           newCount++;
           totalNewCost += BASE_PRICE_LAMPORTS;
@@ -166,22 +185,16 @@ export function BulkPurchaseModal({
       }
     }
     
-    // Add cost for batch pixels outside selection
-    batchPixels.forEach(p => {
-      if (p.owner_wallet) {
-        outbidCount++;
-        totalOutbidCost += p.price_lamports + BASE_PRICE_LAMPORTS;
-      }
-    });
-    
     return {
-      totalCost: totalNewCost + totalOutbidCost,
+      totalCost: totalNewCost + totalOutbidCostInSel + batchPixelsTotalCost,
       newPixelCount: newCount,
-      outbidPixelCount: outbidCount,
-      outbidCost: totalOutbidCost,
+      outbidPixelCountInSelection: outbidCountInSel,
+      outbidCostInSelection: totalOutbidCostInSel,
       newCost: totalNewCost,
       batchPixelsToInclude: batchPixels,
+      batchPixelsCost: batchPixelsTotalCost,
       affectedBatches: overlappingBatchIds.size,
+      totalBatchSize: totalBatchPixels,
     };
   })();
 
@@ -470,10 +483,10 @@ export function BulkPurchaseModal({
                 <AlertTriangle className="w-5 h-5 text-orange-400 flex-shrink-0 mt-0.5" />
                 <div className="text-sm">
                   <p className="font-medium text-orange-300">
-                    Selection overlaps with {affectedBatches} existing batch{affectedBatches > 1 ? 'es' : ''}
+                    {outbidPixelCountInSelection} pixel{outbidPixelCountInSelection > 1 ? 's' : ''} already owned in a rectangle of {totalBatchSize} pixels
                   </p>
                   <p className="text-orange-200/80 mt-1">
-                    You must purchase all {batchPixelsToInclude.length + outbidPixelCount} pixels from the overlapping batch{affectedBatches > 1 ? 'es' : ''}.
+                    You must purchase all {totalBatchSize} pixels from the batch.
                     Outbid cost = previous price + 0.0001 SOL per pixel.
                   </p>
                 </div>
@@ -482,13 +495,13 @@ export function BulkPurchaseModal({
           )}
 
           {/* Outbid warning (when no batch but has owned pixels) */}
-          {outbidPixelCount > 0 && batchPixelsToInclude.length === 0 && (
+          {outbidPixelCountInSelection > 0 && batchPixelsToInclude.length === 0 && (
             <div className="p-4 bg-orange-500/20 rounded-lg border border-orange-500/50">
               <div className="flex items-start gap-3">
                 <AlertTriangle className="w-5 h-5 text-orange-400 flex-shrink-0 mt-0.5" />
                 <div className="text-sm">
                   <p className="font-medium text-orange-300">
-                    {outbidPixelCount} pixel{outbidPixelCount > 1 ? 's are' : ' is'} already owned
+                    {outbidPixelCountInSelection} pixel{outbidPixelCountInSelection > 1 ? 's are' : ' is'} already owned
                   </p>
                   <p className="text-orange-200/80 mt-1">
                     Outbid cost = previous price + 0.0001 SOL per pixel.
@@ -516,13 +529,23 @@ export function BulkPurchaseModal({
                     </span>
                   </div>
                 )}
-                {outbidPixelCount > 0 && (
+                {outbidPixelCountInSelection > 0 && (
                   <div className="flex justify-between items-center text-sm">
                     <span className="text-muted-foreground">
-                      {outbidPixelCount} outbid pixel{outbidPixelCount > 1 ? 's' : ''} (+0.0001 SOL each)
+                      {outbidPixelCountInSelection} outbid pixel{outbidPixelCountInSelection > 1 ? 's' : ''} in selection (+0.0001 SOL each)
                     </span>
                     <span className="font-mono text-orange-400">
-                      {lamportsToSol(outbidCost).toFixed(4)} SOL
+                      {lamportsToSol(outbidCostInSelection).toFixed(4)} SOL
+                    </span>
+                  </div>
+                )}
+                {batchPixelsToInclude.length > 0 && (
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-muted-foreground">
+                      {batchPixelsToInclude.length} additional batch pixel{batchPixelsToInclude.length > 1 ? 's' : ''} (+0.0001 SOL each)
+                    </span>
+                    <span className="font-mono text-orange-400">
+                      {lamportsToSol(batchPixelsCost).toFixed(4)} SOL
                     </span>
                   </div>
                 )}
