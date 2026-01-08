@@ -104,6 +104,27 @@ export function useSolanaTransaction(): UseSolanaTransactionReturn {
         return rpc.result;
       };
 
+      // Check wallet balance before proceeding
+      const balanceResult = await callSolanaRpc<{ value: number }>('getBalance', [
+        fromPubkey.toString(),
+        { commitment: 'confirmed' },
+      ]);
+      
+      const balance = balanceResult.value;
+      const estimatedFee = 5000; // ~0.000005 SOL for transaction fee
+      const requiredAmount = lamports + estimatedFee;
+      
+      if (balance < requiredAmount) {
+        const balanceSol = (balance / 1_000_000_000).toFixed(4);
+        const requiredSol = (requiredAmount / 1_000_000_000).toFixed(4);
+        const shortfallSol = ((requiredAmount - balance) / 1_000_000_000).toFixed(4);
+        toast.error(
+          `Insufficient balance: You have ${balanceSol} SOL but need ${requiredSol} SOL. Please add ${shortfallSol} SOL to your wallet.`
+        );
+        setLoading(false);
+        return null;
+      }
+
       const latest = await callSolanaRpc<{
         value: { blockhash: string; lastValidBlockHeight: number };
       }>('getLatestBlockhash', [{ commitment: 'confirmed' }]);
