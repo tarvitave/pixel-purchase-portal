@@ -169,7 +169,7 @@ serve(async (req) => {
     console.log('Place pixel request:', { x, y, color, price_lamports, wallet, transaction_signature });
 
     // Validate inputs
-    if (x < 0 || x >= 1000 || y < 0 || y >= 1000) {
+    if (x < 0 || x >= 500 || y < 0 || y >= 500) {
       return new Response(
         JSON.stringify({ error: 'Invalid pixel coordinates' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

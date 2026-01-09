@@ -11,7 +11,7 @@ interface PixelCanvasProps {
   selectionMode?: 'single' | 'rectangle';
 }
 
-const CANVAS_SIZE = 1000;
+const CANVAS_SIZE = 500;
 const MIN_ZOOM = 0.5;
 const MAX_ZOOM = 40;
 const DEFAULT_ZOOM = 2;
