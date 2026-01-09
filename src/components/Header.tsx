@@ -18,19 +18,8 @@ export function Header({ imageCount, pixelsCovered }: HeaderProps) {
       <div className="container mx-auto px-4 h-16 flex items-center justify-between">
         {/* Logo */}
         <Link to="/" className="flex items-center gap-3 group">
-          <div className="relative w-24 h-20">
-            {/* Animated glow background */}
-            <div className="absolute inset-0 bg-white rounded-2xl blur-md opacity-60 group-hover:opacity-100 transition-opacity" />
-            {/* Main logo */}
-            <div className="relative w-full h-full bg-white rounded-2xl flex items-center justify-center shadow-lg border border-gray-200">
-              {/* 402 text in grey */}
-              <span className="text-3xl font-black text-gray-400 tracking-tight">402</span>
-              {/* X overlay in black */}
-              <span className="absolute inset-0 flex items-center justify-center text-5xl font-black text-black opacity-90">×</span>
-              {/* Ping indicator */}
-              <span className="absolute -top-1 -right-1 w-4 h-4 bg-primary rounded-full animate-ping opacity-75" />
-              <span className="absolute -top-1 -right-1 w-4 h-4 bg-primary rounded-full" />
-            </div>
+          <div className="relative px-4 py-2 bg-white rounded-xl shadow-lg border border-gray-200 group-hover:shadow-xl transition-shadow">
+            <span className="text-2xl font-black text-primary tracking-tight">402 Demo</span>
           </div>
           <div>
             <h1 className="font-bold text-lg text-foreground group-hover:text-primary transition-colors">
