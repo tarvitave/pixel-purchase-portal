@@ -16,26 +16,45 @@ export const Leaderboard = () => {
 
   useEffect(() => {
     const fetchLeaderboard = async () => {
-      const { data, error } = await supabase
-        .from('pixels')
-        .select('owner_wallet, price_lamports')
-        .not('owner_wallet', 'is', null);
+      // Fetch both pixels and image placements
+      const [pixelsResult, imagesResult] = await Promise.all([
+        supabase
+          .from('pixels')
+          .select('owner_wallet, price_lamports')
+          .not('owner_wallet', 'is', null),
+        supabase
+          .from('image_placements')
+          .select('owner_wallet, price_lamports, width, height')
+      ]);
 
-      if (error) {
-        console.error('Error fetching leaderboard:', error);
-        setLoading(false);
-        return;
+      if (pixelsResult.error) {
+        console.error('Error fetching pixels:', pixelsResult.error);
+      }
+      if (imagesResult.error) {
+        console.error('Error fetching image placements:', imagesResult.error);
       }
 
       // Aggregate by wallet
       const walletStats = new Map<string, { count: number; spent: number }>();
       
-      data?.forEach((pixel) => {
+      // Add pixel data
+      pixelsResult.data?.forEach((pixel) => {
         if (!pixel.owner_wallet) return;
         const existing = walletStats.get(pixel.owner_wallet) || { count: 0, spent: 0 };
         walletStats.set(pixel.owner_wallet, {
           count: existing.count + 1,
           spent: existing.spent + Number(pixel.price_lamports),
+        });
+      });
+
+      // Add image placement data (each image covers width * height pixels)
+      imagesResult.data?.forEach((placement) => {
+        if (!placement.owner_wallet) return;
+        const pixelCount = placement.width * placement.height;
+        const existing = walletStats.get(placement.owner_wallet) || { count: 0, spent: 0 };
+        walletStats.set(placement.owner_wallet, {
+          count: existing.count + pixelCount,
+          spent: existing.spent + Number(placement.price_lamports),
         });
       });
 
@@ -53,9 +72,9 @@ export const Leaderboard = () => {
 
     fetchLeaderboard();
 
-    // Subscribe to real-time updates
-    const channel = supabase
-      .channel('leaderboard-updates')
+    // Subscribe to real-time updates for both tables
+    const pixelsChannel = supabase
+      .channel('leaderboard-pixels')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'pixels' },
@@ -63,8 +82,18 @@ export const Leaderboard = () => {
       )
       .subscribe();
 
+    const imagesChannel = supabase
+      .channel('leaderboard-images')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'image_placements' },
+        () => fetchLeaderboard()
+      )
+      .subscribe();
+
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(pixelsChannel);
+      supabase.removeChannel(imagesChannel);
     };
   }, []);
 
