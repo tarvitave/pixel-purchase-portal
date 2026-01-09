@@ -518,6 +518,7 @@ export function PixelCanvas({
 
   // Get hovered pixel info for tooltip
   const hoveredPixelData = hoveredPixel ? getPixel(hoveredPixel.x, hoveredPixel.y) : undefined;
+  const hoveredPlacement = hoveredPixel ? getPlacementAt(hoveredPixel.x, hoveredPixel.y) : undefined;
 
   return (
     <div 
@@ -615,7 +616,35 @@ export function PixelCanvas({
             ({hoveredPixel.x}, {hoveredPixel.y})
           </div>
           
-          {hoveredPixelData ? (
+          {hoveredPlacement ? (
+            <>
+              <div className="text-xs text-muted-foreground mb-1">Status</div>
+              <div className="text-sm text-yellow-400 mb-2">
+                Taken with image size {hoveredPlacement.width} × {hoveredPlacement.height} pixels
+              </div>
+              {hoveredPlacement.link_url && (
+                <div className="mb-2 p-2 bg-primary/10 rounded border border-primary/20">
+                  <div className="text-xs text-muted-foreground mb-1">🔗 Link</div>
+                  <div className="text-xs text-primary font-medium break-all max-w-[180px]">
+                    {hoveredPlacement.link_url}
+                  </div>
+                  <div className="text-[10px] text-muted-foreground mt-1">Click to visit</div>
+                </div>
+              )}
+              <div className="text-xs text-muted-foreground mb-1">Current price per pixel</div>
+              <div className="text-sm text-primary font-bold">
+                {lamportsToSol(hoveredPlacement.price_lamports / (hoveredPlacement.width * hoveredPlacement.height)).toFixed(6)} SOL
+              </div>
+              <div className="text-xs text-muted-foreground mt-2">Min bid to outbid (per pixel)</div>
+              <div className="text-sm text-accent font-bold">
+                {lamportsToSol(getMinBidLamports(hoveredPlacement.price_lamports / (hoveredPlacement.width * hoveredPlacement.height))).toFixed(6)} SOL
+              </div>
+              <div className="text-xs text-muted-foreground mt-2">Total to outbid entire image</div>
+              <div className="text-sm text-accent font-bold">
+                {lamportsToSol(getMinBidLamports(hoveredPlacement.price_lamports / (hoveredPlacement.width * hoveredPlacement.height)) * hoveredPlacement.width * hoveredPlacement.height).toFixed(6)} SOL
+              </div>
+            </>
+          ) : hoveredPixelData ? (
             <>
               <div className="flex items-center gap-2 mb-2">
                 <div 
