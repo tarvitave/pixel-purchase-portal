@@ -184,9 +184,8 @@ serve(async (req) => {
 
     // Calculate required price based on area and any existing placements
     const pixelCount = width * height;
-    let requiredPrice = pixelCount * BASE_PRICE_PER_PIXEL;
 
-    // Check for overlapping placements that need to be outbid
+    // Check for overlapping placements
     const { data: overlapping } = await supabase
       .from('image_placements')
       .select('id, x, y, width, height, price_lamports, owner_wallet')
@@ -198,12 +197,39 @@ serve(async (req) => {
       return overlapX && overlapY && p.owner_wallet !== wallet;
     });
 
-    // Add outbid premiums
+    // NEW RULES: Must fully cover all overlapping images
     for (const placement of overlappingPlacements) {
-      requiredPrice += Number(placement.price_lamports);
+      const fullyCovers = x <= placement.x && 
+                          y <= placement.y && 
+                          x + width >= placement.x + placement.width && 
+                          y + height >= placement.y + placement.height;
+      
+      if (!fullyCovers) {
+        return new Response(
+          JSON.stringify({ 
+            error: `Your image must fully cover all overlapping images. Image at (${placement.x}, ${placement.y}) with size ${placement.width}×${placement.height} is not fully covered.` 
+          }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
     }
 
-    console.log(`Required price: ${requiredPrice} lamports (${pixelCount} pixels + ${overlappingPlacements.length} outbids)`);
+    // Calculate price: (max price per pixel + 0.000001 SOL) × total pixels
+    let pricePerPixel = BASE_PRICE_PER_PIXEL; // 0.000001 SOL = 1000 lamports
+    
+    if (overlappingPlacements.length > 0) {
+      // Find the highest price per pixel among all overlapped images
+      const maxPricePerPixel = Math.max(...overlappingPlacements.map(p => {
+        const placementPixels = p.width * p.height;
+        return Number(p.price_lamports) / placementPixels;
+      }));
+      // New price = max price per pixel + 0.000001 SOL (1000 lamports)
+      pricePerPixel = maxPricePerPixel + BASE_PRICE_PER_PIXEL;
+    }
+
+    const requiredPrice = Math.ceil(pixelCount * pricePerPixel);
+
+    console.log(`Required price: ${requiredPrice} lamports (${pixelCount} pixels × ${pricePerPixel} lamports/pixel)`);
 
     if (price_lamports < requiredPrice) {
       return new Response(
