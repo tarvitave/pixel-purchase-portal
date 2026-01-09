@@ -191,14 +191,19 @@ serve(async (req) => {
       .select('id, x, y, width, height, price_lamports, owner_wallet')
       .or(`and(x.lt.${x + width},x.gte.${x - 1000}),and(y.lt.${y + height},y.gte.${y - 1000})`);
 
-    const overlappingPlacements = (overlapping || []).filter(p => {
+    // Find ALL overlapping placements (including same owner)
+    const allOverlappingPlacements = (overlapping || []).filter(p => {
       const overlapX = Math.max(x, p.x) < Math.min(x + width, p.x + p.width);
       const overlapY = Math.max(y, p.y) < Math.min(y + height, p.y + p.height);
-      return overlapX && overlapY && p.owner_wallet !== wallet;
+      return overlapX && overlapY;
     });
 
-    // NEW RULES: Must fully cover all overlapping images
-    for (const placement of overlappingPlacements) {
+    // Separate: placements that need to be fully covered (all overlapping)
+    // and placements that will be deleted (only those from other owners)
+    const overlappingPlacements = allOverlappingPlacements.filter(p => p.owner_wallet !== wallet);
+
+    // NEW RULES: Must fully cover ALL overlapping images (including own)
+    for (const placement of allOverlappingPlacements) {
       const fullyCovers = x <= placement.x && 
                           y <= placement.y && 
                           x + width >= placement.x + placement.width && 
@@ -217,9 +222,10 @@ serve(async (req) => {
     // Calculate price: (max price per pixel + 0.000001 SOL) × total pixels
     let pricePerPixel = BASE_PRICE_PER_PIXEL; // 0.000001 SOL = 1000 lamports
     
-    if (overlappingPlacements.length > 0) {
+    // Calculate price based on ALL overlapping placements (including own)
+    if (allOverlappingPlacements.length > 0) {
       // Find the highest price per pixel among all overlapped images
-      const maxPricePerPixel = Math.max(...overlappingPlacements.map(p => {
+      const maxPricePerPixel = Math.max(...allOverlappingPlacements.map(p => {
         const placementPixels = p.width * p.height;
         return Number(p.price_lamports) / placementPixels;
       }));

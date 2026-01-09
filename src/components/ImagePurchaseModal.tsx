@@ -53,21 +53,22 @@ export function ImagePurchaseModal({
   const pixelCount = width * height;
 
   // Get overlapping placements
-  const overlappingPlacements = getOverlappingPlacements(minX, minY, width, height);
-  const ownPlacements = overlappingPlacements.filter(p => p.owner_wallet === publicKey);
-  const otherPlacements = overlappingPlacements.filter(p => p.owner_wallet !== publicKey);
+  const allOverlappingPlacements = getOverlappingPlacements(minX, minY, width, height);
+  const ownPlacements = allOverlappingPlacements.filter(p => p.owner_wallet === publicKey);
+  const otherPlacements = allOverlappingPlacements.filter(p => p.owner_wallet !== publicKey);
 
-  // Check if this placement fully covers all overlapping images
-  const notFullyCovered = otherPlacements.filter(p => 
+  // Check if this placement fully covers ALL overlapping images (including own)
+  const notFullyCovered = allOverlappingPlacements.filter(p => 
     !(minX <= p.x && minY <= p.y && minX + width >= p.x + p.width && minY + height >= p.y + p.height)
   );
 
   // Calculate cost: (max price per pixel + 0.000001 SOL) × total pixels
+  // Uses ALL overlapping placements for price calculation
   let pricePerPixel = BASE_PRICE_PER_PIXEL;
   
-  if (otherPlacements.length > 0 && notFullyCovered.length === 0) {
-    // Find max price per pixel among overlapped images
-    const maxPricePerPixel = Math.max(...otherPlacements.map(p => {
+  if (allOverlappingPlacements.length > 0 && notFullyCovered.length === 0) {
+    // Find max price per pixel among ALL overlapped images
+    const maxPricePerPixel = Math.max(...allOverlappingPlacements.map(p => {
       const placementPixels = p.width * p.height;
       return Number(p.price_lamports) / placementPixels;
     }));
