@@ -188,9 +188,9 @@ serve(async (req) => {
       );
     }
 
-    if (pixels.length > 250000) {
+    if (pixels.length > 50000) {
       return new Response(
-        JSON.stringify({ error: 'Maximum 250,000 pixels per transaction' }),
+        JSON.stringify({ error: 'Maximum 50,000 pixels per transaction (approx 224x224 image). Please use a smaller image.' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -407,8 +407,8 @@ serve(async (req) => {
       };
     });
 
-    // Bulk upsert pixels in batches to avoid CPU timeout
-    const BATCH_SIZE = 1000;
+    // Bulk upsert pixels in smaller batches to avoid database statement timeout
+    const BATCH_SIZE = 250;
     for (let i = 0; i < pixelData.length; i += BATCH_SIZE) {
       const batch = pixelData.slice(i, i + BATCH_SIZE);
       const { error: upsertError } = await supabase
