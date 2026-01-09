@@ -306,46 +306,6 @@ const Index = () => {
             isActive={!!imagePlacement}
           />
 
-          {/* Instructions */}
-          <div className="bg-card border border-border rounded-xl p-4">
-            <h3 className="text-sm font-medium text-foreground mb-3">How it Works</h3>
-            <ol className="space-y-2 text-xs text-muted-foreground">
-              <li className="flex gap-2">
-                <span className="text-primary font-bold">1.</span>
-                Connect your Phantom wallet
-              </li>
-              <li className="flex gap-2">
-                <span className="text-primary font-bold">2.</span>
-                Upload an image and add a link URL
-              </li>
-              <li className="flex gap-2">
-                <span className="text-primary font-bold">3.</span>
-                Drag to position on the 500×500 canvas
-              </li>
-              <li className="flex gap-2">
-                <span className="text-primary font-bold">4.</span>
-                Click "Place Image" and pay in SOL
-              </li>
-              <li className="flex gap-2">
-                <span className="text-primary font-bold">5.</span>
-                Your image stays forever (or until outbid!)
-              </li>
-            </ol>
-          </div>
-
-          {/* x402 Protocol info */}
-          <div className="bg-gradient-to-br from-primary/10 to-secondary/10 border border-primary/30 rounded-xl p-4">
-            <h3 className="text-sm font-medium text-foreground mb-2 flex items-center gap-2">
-              <span className="text-primary">⚡</span>
-              HTTP x402 Protocol
-            </h3>
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              This canvas uses the x402 protocol for native web payments. 
-              Each pixel purchase is a micropayment secured by Solana's 
-              lightning-fast blockchain.
-            </p>
-          </div>
-
           {/* My Placements */}
           <MyPlacements
             onViewPlacement={handleViewPlacement}
