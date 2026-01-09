@@ -191,22 +191,38 @@ export function PixelCanvas({
     ctx.strokeRect(offset.x, offset.y, CANVAS_SIZE * pixelSize, CANVAS_SIZE * pixelSize);
   }, [zoom, offset, pixels, hoveredPixel, selectedColor, walletConnected, getPixelColor, getPlacementAt, selectionMode, selectionStart, selectionEnd, placements, loadedImages]);
 
-  // Load images for placements
+  // Load images for placements - batch load for better performance
   useEffect(() => {
-    const imagesToLoad = placements.filter(p => !loadedImages.has(p.image_url));
+    const urlsToLoad = placements
+      .map(p => p.image_url)
+      .filter(url => !loadedImages.has(url));
     
-    imagesToLoad.forEach((placement) => {
-      const img = new Image();
-      img.crossOrigin = 'anonymous';
-      img.onload = () => {
-        setLoadedImages(prev => new Map(prev).set(placement.image_url, img));
-      };
-      img.onerror = (e) => {
-        console.error('Failed to load image:', placement.image_url, e);
-      };
-      img.src = placement.image_url;
+    if (urlsToLoad.length === 0) return;
+    
+    // Load all images in parallel, then batch update state
+    const loadPromises = urlsToLoad.map(url => {
+      return new Promise<[string, HTMLImageElement | null]>((resolve) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => resolve([url, img]);
+        img.onerror = () => {
+          console.error('Failed to load image:', url);
+          resolve([url, null]);
+        };
+        img.src = url;
+      });
     });
-  }, [placements]); // Remove loadedImages from deps to prevent infinite loop
+    
+    Promise.all(loadPromises).then(results => {
+      setLoadedImages(prev => {
+        const newMap = new Map(prev);
+        results.forEach(([url, img]) => {
+          if (img) newMap.set(url, img);
+        });
+        return newMap;
+      });
+    });
+  }, [placements]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Draw the minimap
   const drawMinimap = useCallback(() => {
