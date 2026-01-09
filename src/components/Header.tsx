@@ -26,6 +26,14 @@ export function Header({ imageCount, pixelsCovered }: HeaderProps) {
 
         {/* Stats */}
         <div className="hidden md:flex items-center gap-6">
+          <a 
+            href="https://linkedin.com/in/colinwynd" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="text-sm font-medium text-primary hover:text-primary/80 transition-colors"
+          >
+            Contact Me
+          </a>
           <div className="text-center">
             <div className="text-2xl font-bold font-mono text-foreground">
               {imageCount.toLocaleString()}
