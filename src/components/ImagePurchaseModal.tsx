@@ -274,7 +274,7 @@ export function ImagePurchaseModal({
                 {pixelCount} pixels × {lamportsToSol(BASE_PRICE_PER_PIXEL).toFixed(6)} SOL
               </span>
               <span className="font-mono text-foreground">
-                {lamportsToSol(baseCost).toFixed(4)} SOL
+                {lamportsToSol(baseCost).toFixed(6)} SOL
               </span>
             </div>
             
@@ -282,7 +282,7 @@ export function ImagePurchaseModal({
               <div className="flex justify-between items-center text-sm">
                 <span className="text-muted-foreground">Outbid premium</span>
                 <span className="font-mono text-orange-400">
-                  {lamportsToSol(outbidCost).toFixed(4)} SOL
+                  {lamportsToSol(outbidCost).toFixed(6)} SOL
                 </span>
               </div>
             )}
@@ -290,7 +290,7 @@ export function ImagePurchaseModal({
             <div className="border-t border-border pt-3 flex justify-between items-center">
               <div className="text-xs text-muted-foreground">Total Cost</div>
               <div className="text-lg font-bold text-accent">
-                {lamportsToSol(totalCost).toFixed(4)} SOL
+                {lamportsToSol(totalCost).toFixed(6)} SOL
               </div>
             </div>
           </div>
@@ -316,7 +316,7 @@ export function ImagePurchaseModal({
                   {txLoading ? 'Sending...' : 'Uploading...'}
                 </>
               ) : (
-                `Pay ${lamportsToSol(totalCost).toFixed(4)} SOL`
+                `Pay ${lamportsToSol(totalCost).toFixed(6)} SOL`
               )}
             </Button>
           </div>
