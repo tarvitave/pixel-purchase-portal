@@ -176,7 +176,14 @@ export function ImagePurchaseModal({
       }
 
       if (data?.error) {
-        toast.error(data.error);
+        // Check for content moderation rejection
+        if (data.error.includes('content policy') || data.moderation_reason) {
+          toast.error('This image violates our content policy. Please choose a different image.', {
+            duration: 5000,
+          });
+        } else {
+          toast.error(data.error);
+        }
         return;
       }
 
