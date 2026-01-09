@@ -1,5 +1,6 @@
 import { WalletButton } from './WalletButton';
 import { HelpCircle, Zap } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import {
   HoverCard,
   HoverCardContent,
@@ -16,19 +17,26 @@ export function Header({ imageCount, pixelsCovered }: HeaderProps) {
     <header className="fixed top-0 left-0 right-0 z-50 bg-muted/95 backdrop-blur-md border-b border-border">
       <div className="container mx-auto px-4 h-16 flex items-center justify-between">
         {/* Logo */}
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-gradient-to-br from-primary via-secondary to-accent rounded-lg flex items-center justify-center">
-            <span className="text-lg font-bold text-primary-foreground">×</span>
+        <Link to="/" className="flex items-center gap-3 group">
+          <div className="relative w-10 h-10">
+            {/* Animated glow background */}
+            <div className="absolute inset-0 bg-gradient-to-br from-primary via-secondary to-accent rounded-xl blur-sm opacity-60 group-hover:opacity-100 transition-opacity animate-pulse" />
+            {/* Main logo */}
+            <div className="relative w-full h-full bg-gradient-to-br from-primary via-secondary to-accent rounded-xl flex items-center justify-center shadow-lg border border-white/20">
+              <span className="text-xl font-black text-primary-foreground drop-shadow-md">4</span>
+              <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-accent rounded-full animate-ping opacity-75" />
+              <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-accent rounded-full" />
+            </div>
           </div>
           <div>
-            <h1 className="font-bold text-lg text-foreground">
-              x402<span className="text-primary">homepage</span>.com
+            <h1 className="font-bold text-lg text-foreground group-hover:text-primary transition-colors">
+              x402<span className="text-primary group-hover:text-secondary transition-colors">homepage</span>.com
             </h1>
             <p className="text-xs text-muted-foreground -mt-0.5">
               HTTP x402 Protocol • Solana Micropayments
             </p>
           </div>
-        </div>
+        </Link>
 
         {/* Center - Info Hovers */}
         <div className="hidden md:flex items-center gap-4">
