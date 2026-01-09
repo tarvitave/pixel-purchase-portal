@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { PixelCanvas } from '@/components/PixelCanvas';
-import { ColorPicker } from '@/components/ColorPicker';
 import { PurchaseModal } from '@/components/PurchaseModal';
 import { ImagePurchaseModal } from '@/components/ImagePurchaseModal';
 import { OutbidBatchModal } from '@/components/OutbidBatchModal';
@@ -158,11 +157,6 @@ const Index = () => {
             isActive={!!imagePlacement}
           />
 
-          <ColorPicker
-            selectedColor={selectedColor}
-            onColorChange={setSelectedColor}
-          />
-
           {/* Instructions */}
           <div className="bg-card border border-border rounded-xl p-4">
             <h3 className="text-sm font-medium text-foreground mb-3">How it Works</h3>
@@ -173,19 +167,19 @@ const Index = () => {
               </li>
               <li className="flex gap-2">
                 <span className="text-primary font-bold">2.</span>
-                Select a color or use Rectangle mode
+                Upload an image using the panel above
               </li>
               <li className="flex gap-2">
                 <span className="text-primary font-bold">3.</span>
-                Click pixel or drag to select area
+                Click on the canvas to place it
               </li>
               <li className="flex gap-2">
                 <span className="text-primary font-bold">4.</span>
-                For bulk: paste an image URL
+                Pay 0.001 SOL per pixel (1000 lamports)
               </li>
               <li className="flex gap-2">
                 <span className="text-primary font-bold">5.</span>
-                Pay 0.000001 SOL per pixel
+                Click placed images to visit their links
               </li>
             </ol>
           </div>
