@@ -7,8 +7,10 @@ interface PixelCanvasProps {
   onPixelClick: (x: number, y: number, existingPixel: Pixel | undefined) => void;
   onRectangleSelect?: (startX: number, startY: number, endX: number, endY: number) => void;
   onImageDrop?: (x: number, y: number, imageData: ImagePlacementData) => void;
+  onImageContextMenu?: (placement: ImagePlacement, screenX: number, screenY: number) => void;
   walletConnected: boolean;
   selectionMode?: 'single' | 'rectangle';
+  scrollToPlacement?: { x: number; y: number; width: number; height: number } | null;
 }
 
 const CANVAS_SIZE = 500;
@@ -22,8 +24,10 @@ export function PixelCanvas({
   onPixelClick, 
   onRectangleSelect,
   onImageDrop,
+  onImageContextMenu,
   walletConnected,
-  selectionMode = 'single'
+  selectionMode = 'single',
+  scrollToPlacement,
 }: PixelCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -328,6 +332,23 @@ export function PixelCanvas({
     drawMinimap();
   }, [draw, drawMinimap]);
 
+  // Scroll to placement when requested
+  useEffect(() => {
+    if (!scrollToPlacement) return;
+    
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    
+    const { x, y, width, height } = scrollToPlacement;
+    const targetZoom = Math.max(8, Math.min(20, 300 / Math.max(width, height)));
+    
+    setZoom(targetZoom);
+    setOffset({
+      x: canvas.width / 2 - (x + width / 2) * targetZoom,
+      y: canvas.height / 2 - (y + height / 2) * targetZoom,
+    });
+  }, [scrollToPlacement]);
+
   // Convert screen coordinates to pixel coordinates (returns null if outside the board)
   const screenToPixel = useCallback((screenX: number, screenY: number) => {
     const canvas = canvasRef.current;
@@ -361,6 +382,9 @@ export function PixelCanvas({
 
   // Pointer handlers (pointer capture keeps drag/select working even if the pointer leaves the canvas)
   const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    // Right-click for context menu
+    if (e.button === 2) return;
+    
     if (e.button !== 0) return;
 
     // Keep receiving move/up events even if the pointer leaves the element
@@ -383,6 +407,18 @@ export function PixelCanvas({
 
     setIsDragging(true);
     setDragStart({ x: e.clientX - offset.x, y: e.clientY - offset.y });
+  };
+
+  // Handle right-click context menu
+  const handleContextMenu = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    const pixel = screenToPixel(e.clientX, e.clientY);
+    if (!pixel) return;
+    
+    const placement = getPlacementAt(pixel.x, pixel.y);
+    if (placement && onImageContextMenu) {
+      e.preventDefault();
+      onImageContextMenu(placement, e.clientX, e.clientY);
+    }
   };
 
   const handlePointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
@@ -536,6 +572,7 @@ export function PixelCanvas({
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
+        onContextMenu={handleContextMenu}
         className={(isDragging ? 'cursor-grabbing' : 'cursor-crosshair') + ' touch-none select-none'}
       />
       
