@@ -8,3 +8,9 @@ verify_jwt = false
 
 [functions.get-treasury-wallet]
 verify_jwt = false
+
+[functions.moderate-image]
+verify_jwt = false
+
+[functions.place-image]
+verify_jwt = false

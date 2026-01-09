@@ -124,6 +124,8 @@ export function ImagePurchaseModal({
     }
   }, [open]);
 
+  const [moderating, setModerating] = useState(false);
+
   const handlePurchase = async () => {
     if (!connected || !publicKey) {
       toast.error('Please connect your wallet first');
@@ -138,6 +140,31 @@ export function ImagePurchaseModal({
     setLoading(true);
 
     try {
+      // Pre-flight content moderation check BEFORE payment
+      setModerating(true);
+      toast.info('Checking image content...');
+      
+      const { data: moderationData, error: moderationError } = await supabase.functions.invoke('moderate-image', {
+        body: { image_base64: imagePreview },
+      });
+
+      setModerating(false);
+
+      if (moderationError) {
+        console.error('Moderation error:', moderationError);
+        toast.error('Failed to check image content. Please try again.');
+        setLoading(false);
+        return;
+      }
+
+      if (!moderationData?.safe) {
+        toast.error(`This image violates our content policy${moderationData?.reason ? `: ${moderationData.reason}` : ''}. Please choose a different image.`, {
+          duration: 5000,
+        });
+        setLoading(false);
+        return;
+      }
+
       let transactionSignature: string | null = null;
 
       // Only require payment if there's a cost (not a free owner replacement)
@@ -176,7 +203,7 @@ export function ImagePurchaseModal({
       }
 
       if (data?.error) {
-        // Check for content moderation rejection
+        // Check for content moderation rejection (backup check)
         if (data.error.includes('content policy') || data.moderation_reason) {
           toast.error('This image violates our content policy. Please choose a different image.', {
             duration: 5000,
@@ -194,10 +221,11 @@ export function ImagePurchaseModal({
       toast.error('Failed to complete purchase');
     } finally {
       setLoading(false);
+      setModerating(false);
     }
   };
 
-  const isProcessing = loading || txLoading;
+  const isProcessing = loading || txLoading || moderating;
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
@@ -384,7 +412,7 @@ export function ImagePurchaseModal({
               {isProcessing ? (
                 <>
                   <div className="w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin mr-2" />
-                  {txLoading ? 'Sending...' : 'Uploading...'}
+                  {moderating ? 'Checking content...' : txLoading ? 'Sending...' : 'Uploading...'}
                 </>
               ) : isOwnerReplacement ? (
                 'Update Image'
