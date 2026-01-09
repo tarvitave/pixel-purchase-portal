@@ -224,7 +224,11 @@ export function PixelCanvas({
     });
   }, [placements]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Draw the minimap
+  // Cache minimap pixel layer - only regenerate when pixels change
+  const minimapPixelCache = useRef<ImageData | null>(null);
+  const lastPixelsRef = useRef<typeof pixels | null>(null);
+
+  // Draw the minimap (uses cached pixel layer)
   const drawMinimap = useCallback(() => {
     const minimap = minimapRef.current;
     const mainCanvas = canvasRef.current;
@@ -235,24 +239,43 @@ export function PixelCanvas({
 
     const scale = MINIMAP_SIZE / CANVAS_SIZE;
 
-    // Clear minimap with dark background
-    ctx.fillStyle = '#1a1a2e';
-    ctx.fillRect(0, 0, MINIMAP_SIZE, MINIMAP_SIZE);
+    // Regenerate pixel cache only when pixels change
+    if (lastPixelsRef.current !== pixels) {
+      lastPixelsRef.current = pixels;
+      
+      // Create offscreen canvas for pixel layer
+      const offscreen = document.createElement('canvas');
+      offscreen.width = MINIMAP_SIZE;
+      offscreen.height = MINIMAP_SIZE;
+      const offCtx = offscreen.getContext('2d');
+      if (offCtx) {
+        offCtx.fillStyle = '#1a1a2e';
+        offCtx.fillRect(0, 0, MINIMAP_SIZE, MINIMAP_SIZE);
+        
+        Object.values(pixels).forEach((pixel) => {
+          offCtx.fillStyle = pixel.color;
+          const size = Math.max(1, scale);
+          offCtx.fillRect(
+            Math.floor(pixel.x * scale),
+            Math.floor(pixel.y * scale),
+            size,
+            size
+          );
+        });
+        
+        minimapPixelCache.current = offCtx.getImageData(0, 0, MINIMAP_SIZE, MINIMAP_SIZE);
+      }
+    }
 
-    // Draw all pixels on minimap
-    Object.values(pixels).forEach((pixel) => {
-      ctx.fillStyle = pixel.color;
-      // Draw each pixel as at least 1px on minimap, slightly larger for visibility
-      const size = Math.max(1, scale);
-      ctx.fillRect(
-        Math.floor(pixel.x * scale),
-        Math.floor(pixel.y * scale),
-        size,
-        size
-      );
-    });
+    // Draw cached pixel layer
+    if (minimapPixelCache.current) {
+      ctx.putImageData(minimapPixelCache.current, 0, 0);
+    } else {
+      ctx.fillStyle = '#1a1a2e';
+      ctx.fillRect(0, 0, MINIMAP_SIZE, MINIMAP_SIZE);
+    }
 
-    // Draw viewport rectangle
+    // Draw viewport rectangle (this changes on pan/zoom)
     const viewportX = -offset.x / zoom;
     const viewportY = -offset.y / zoom;
     const viewportWidth = mainCanvas.width / zoom;
