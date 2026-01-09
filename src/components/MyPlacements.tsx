@@ -21,7 +21,10 @@ export function MyPlacements({ onViewPlacement, onReplacePlacement, onEditLink }
     return null;
   }
 
-  const myPlacements = placements.filter(p => p.owner_wallet === publicKey);
+  // Filter placements by current wallet - publicKey changes trigger re-filter
+  const myPlacements = placements.filter(p => 
+    publicKey && p.owner_wallet.toLowerCase() === publicKey.toLowerCase()
+  );
 
   if (myPlacements.length === 0) {
     return null;
