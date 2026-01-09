@@ -62,6 +62,14 @@ export function ImagePurchaseModal({
     !(minX <= p.x && minY <= p.y && minX + width >= p.x + p.width && minY + height >= p.y + p.height)
   );
 
+  // Determine if this is a FREE owner replacement:
+  // - Must have overlapping placements
+  // - ALL overlapping placements must be owned by current user
+  // - ALL overlapping placements must be fully covered
+  const isOwnerReplacement = allOverlappingPlacements.length > 0 && 
+                              otherPlacements.length === 0 && 
+                              notFullyCovered.length === 0;
+
   // Calculate cost: (max price per pixel + 0.000001 SOL) × total pixels
   // Uses ALL overlapping placements for price calculation
   let pricePerPixel = BASE_PRICE_PER_PIXEL;
@@ -75,7 +83,8 @@ export function ImagePurchaseModal({
     pricePerPixel = maxPricePerPixel + BASE_PRICE_PER_PIXEL;
   }
 
-  const totalCost = Math.ceil(pixelCount * pricePerPixel);
+  // Free for owner replacements, otherwise calculate normally
+  const totalCost = isOwnerReplacement ? 0 : Math.ceil(pixelCount * pricePerPixel);
 
   // Handle file upload
   const handleFileUpload = (e: ChangeEvent<HTMLInputElement>) => {
@@ -129,17 +138,23 @@ export function ImagePurchaseModal({
     setLoading(true);
 
     try {
-      toast.info('Please approve the transaction in Phantom...');
-      const transactionSignature = await sendPayment(totalCost);
-      
-      if (!transactionSignature) {
-        setLoading(false);
-        return;
+      let transactionSignature: string | null = null;
+
+      // Only require payment if there's a cost (not a free owner replacement)
+      if (totalCost > 0) {
+        toast.info('Please approve the transaction in Phantom...');
+        transactionSignature = await sendPayment(totalCost);
+        
+        if (!transactionSignature) {
+          setLoading(false);
+          return;
+        }
+        toast.success('Payment confirmed! Uploading image...');
+      } else {
+        toast.info('Updating your image...');
       }
 
-      toast.success('Payment confirmed! Uploading image...');
-
-      // Call the new edge function
+      // Call the edge function
       const { data, error } = await supabase.functions.invoke('place-image', {
         body: {
           x: minX,
@@ -165,7 +180,7 @@ export function ImagePurchaseModal({
         return;
       }
 
-      toast.success(`Image placed successfully! 🎨`);
+      toast.success(isOwnerReplacement ? 'Image updated successfully! 🎨' : 'Image placed successfully! 🎨');
       onClose();
     } catch (error) {
       console.error('Purchase error:', error);
@@ -282,6 +297,23 @@ export function ImagePurchaseModal({
             </div>
           )}
 
+          {/* Owner replacement info */}
+          {isOwnerReplacement && (
+            <div className="p-4 bg-green-500/20 rounded-lg border border-green-500/50">
+              <div className="flex items-start gap-3">
+                <span className="text-green-400 text-lg">✓</span>
+                <div className="text-sm">
+                  <p className="font-medium text-green-300">
+                    Free Replacement
+                  </p>
+                  <p className="text-green-200/80 mt-1">
+                    You own this space — updating your image is free!
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Outbid info */}
           {otherPlacements.length > 0 && notFullyCovered.length === 0 && (
             <div className="p-4 bg-orange-500/20 rounded-lg border border-orange-500/50">
@@ -301,21 +333,30 @@ export function ImagePurchaseModal({
 
           {/* Pricing info */}
           <div className="p-4 bg-accent/20 rounded-lg border border-accent/30 space-y-3">
-            <div className="flex justify-between items-center text-sm">
-              <span className="text-muted-foreground">
-                {pixelCount} pixels × {lamportsToSol(pricePerPixel).toFixed(6)} SOL/pixel
-              </span>
-              <span className="font-mono text-foreground">
-                {lamportsToSol(totalCost).toFixed(6)} SOL
-              </span>
-            </div>
-            
-            <div className="border-t border-border pt-3 flex justify-between items-center">
-              <div className="text-xs text-muted-foreground">Total Cost</div>
-              <div className="text-lg font-bold text-accent">
-                {lamportsToSol(totalCost).toFixed(6)} SOL
+            {isOwnerReplacement ? (
+              <div className="flex justify-between items-center">
+                <span className="text-muted-foreground">Update Cost</span>
+                <span className="font-bold text-green-400">FREE</span>
               </div>
-            </div>
+            ) : (
+              <>
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-muted-foreground">
+                    {pixelCount} pixels × {lamportsToSol(pricePerPixel).toFixed(6)} SOL/pixel
+                  </span>
+                  <span className="font-mono text-foreground">
+                    {lamportsToSol(totalCost).toFixed(6)} SOL
+                  </span>
+                </div>
+                
+                <div className="border-t border-border pt-3 flex justify-between items-center">
+                  <div className="text-xs text-muted-foreground">Total Cost</div>
+                  <div className="text-lg font-bold text-accent">
+                    {lamportsToSol(totalCost).toFixed(6)} SOL
+                  </div>
+                </div>
+              </>
+            )}
           </div>
 
           {/* Action buttons */}
@@ -338,6 +379,8 @@ export function ImagePurchaseModal({
                   <div className="w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin mr-2" />
                   {txLoading ? 'Sending...' : 'Uploading...'}
                 </>
+              ) : isOwnerReplacement ? (
+                'Update Image'
               ) : (
                 `Pay ${lamportsToSol(totalCost).toFixed(6)} SOL`
               )}

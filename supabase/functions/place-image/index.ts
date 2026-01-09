@@ -23,7 +23,7 @@ interface PlaceImageRequest {
   link_url?: string | null;
   price_lamports: number;
   wallet: string;
-  transaction_signature: string;
+  transaction_signature: string | null; // null for free owner replacements
 }
 
 interface SolanaTransaction {
@@ -219,21 +219,30 @@ serve(async (req) => {
       }
     }
 
+    // Check if ALL overlapping placements are owned by the wallet (free replacement)
+    const allOwnedByWallet = allOverlappingPlacements.length > 0 && 
+                              allOverlappingPlacements.every(p => p.owner_wallet === wallet);
+
     // Calculate price: (max price per pixel + 0.000001 SOL) × total pixels
     let pricePerPixel = BASE_PRICE_PER_PIXEL; // 0.000001 SOL = 1000 lamports
-    
-    // Calculate price based on ALL overlapping placements (including own)
-    if (allOverlappingPlacements.length > 0) {
-      // Find the highest price per pixel among all overlapped images
+    let requiredPrice = 0;
+
+    if (allOwnedByWallet) {
+      // Free owner replacement - no payment required
+      requiredPrice = 0;
+      console.log('Owner replacement detected - free update');
+    } else if (allOverlappingPlacements.length > 0) {
+      // Calculate price based on ALL overlapping placements
       const maxPricePerPixel = Math.max(...allOverlappingPlacements.map(p => {
         const placementPixels = p.width * p.height;
         return Number(p.price_lamports) / placementPixels;
       }));
-      // New price = max price per pixel + 0.000001 SOL (1000 lamports)
       pricePerPixel = maxPricePerPixel + BASE_PRICE_PER_PIXEL;
+      requiredPrice = Math.ceil(pixelCount * pricePerPixel);
+    } else {
+      // Fresh area - base price
+      requiredPrice = Math.ceil(pixelCount * BASE_PRICE_PER_PIXEL);
     }
-
-    const requiredPrice = Math.ceil(pixelCount * pricePerPixel);
 
     console.log(`Required price: ${requiredPrice} lamports (${pixelCount} pixels × ${pricePerPixel} lamports/pixel)`);
 
@@ -254,27 +263,37 @@ serve(async (req) => {
       );
     }
 
-    // Check if transaction already used
-    const { data: existingTx } = await supabase
-      .from('image_placements')
-      .select('id')
-      .eq('transaction_signature', transaction_signature)
-      .limit(1);
+    // Only verify transaction if payment is required
+    if (requiredPrice > 0) {
+      if (!transaction_signature) {
+        return new Response(
+          JSON.stringify({ error: 'Transaction signature required for paid placements' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
 
-    if (existingTx && existingTx.length > 0) {
-      return new Response(
-        JSON.stringify({ error: 'Transaction signature already used' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
+      // Check if transaction already used
+      const { data: existingTx } = await supabase
+        .from('image_placements')
+        .select('id')
+        .eq('transaction_signature', transaction_signature)
+        .limit(1);
 
-    // Verify transaction
-    const verification = await verifyTransaction(transaction_signature, wallet, price_lamports, treasuryWallet);
-    if (!verification.verified) {
-      return new Response(
-        JSON.stringify({ error: verification.error || 'Transaction verification failed' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      if (existingTx && existingTx.length > 0) {
+        return new Response(
+          JSON.stringify({ error: 'Transaction signature already used' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Verify transaction
+      const verification = await verifyTransaction(transaction_signature, wallet, price_lamports, treasuryWallet);
+      if (!verification.verified) {
+        return new Response(
+          JSON.stringify({ error: verification.error || 'Transaction verification failed' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
     }
 
     // Upload image to storage
@@ -301,16 +320,23 @@ serve(async (req) => {
       .from('canvas-images')
       .getPublicUrl(fileName);
 
-    // Delete overlapping placements owned by others
-    if (overlappingPlacements.length > 0) {
+    // Delete overlapping placements (both own and others)
+    if (allOverlappingPlacements.length > 0) {
       const { error: deleteError } = await supabase
         .from('image_placements')
         .delete()
-        .in('id', overlappingPlacements.map(p => p.id));
+        .in('id', allOverlappingPlacements.map(p => p.id));
 
       if (deleteError) {
         console.error('Error deleting overlapping placements:', deleteError);
       }
+    }
+
+    // For owner replacements, keep the original price from the highest placement
+    let finalPrice = requiredPrice;
+    if (allOwnedByWallet && allOverlappingPlacements.length > 0) {
+      // Keep the maximum price from owned placements (so it doesn't reset)
+      finalPrice = Math.max(...allOverlappingPlacements.map(p => Number(p.price_lamports)));
     }
 
     // Insert new placement
@@ -324,8 +350,8 @@ serve(async (req) => {
         image_url: publicUrl,
         link_url: link_url || null,
         owner_wallet: wallet,
-        price_lamports: requiredPrice,
-        transaction_signature
+        price_lamports: finalPrice,
+        transaction_signature: transaction_signature || null
       });
 
     if (insertError) {
