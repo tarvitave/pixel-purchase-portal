@@ -193,17 +193,20 @@ export function PixelCanvas({
 
   // Load images for placements
   useEffect(() => {
-    placements.forEach((placement) => {
-      if (!loadedImages.has(placement.image_url)) {
-        const img = new Image();
-        img.crossOrigin = 'anonymous';
-        img.onload = () => {
-          setLoadedImages(prev => new Map(prev).set(placement.image_url, img));
-        };
-        img.src = placement.image_url;
-      }
+    const imagesToLoad = placements.filter(p => !loadedImages.has(p.image_url));
+    
+    imagesToLoad.forEach((placement) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        setLoadedImages(prev => new Map(prev).set(placement.image_url, img));
+      };
+      img.onerror = (e) => {
+        console.error('Failed to load image:', placement.image_url, e);
+      };
+      img.src = placement.image_url;
     });
-  }, [placements, loadedImages]);
+  }, [placements]); // Remove loadedImages from deps to prevent infinite loop
 
   // Draw the minimap
   const drawMinimap = useCallback(() => {
