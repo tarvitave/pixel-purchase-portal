@@ -1,7 +1,7 @@
 import { useRef, useEffect, useState, useCallback, DragEvent } from 'react';
 import { usePixels, type Pixel, getMinBidLamports, lamportsToSol } from '@/hooks/usePixels';
+import { useImagePlacements, type ImagePlacement } from '@/hooks/useImagePlacements';
 import type { ImagePlacementData } from './ImagePlacementPanel';
-
 interface PixelCanvasProps {
   selectedColor: string;
   onPixelClick: (x: number, y: number, existingPixel: Pixel | undefined) => void;
@@ -38,8 +38,10 @@ export function PixelCanvas({
   const [selectionEnd, setSelectionEnd] = useState<{ x: number; y: number } | null>(null);
   const [minimapExpanded, setMinimapExpanded] = useState(true);
   const [isDragOver, setIsDragOver] = useState(false);
+  const [loadedImages, setLoadedImages] = useState<Map<string, HTMLImageElement>>(new Map());
   
   const { pixels, loading, getPixel, getPixelColor } = usePixels();
+  const { placements, getPlacementAt } = useImagePlacements();
 
   // Draw the canvas
   const draw = useCallback(() => {
@@ -83,9 +85,13 @@ export function PixelCanvas({
       }
     }
 
-    // Draw pixels
+    // Draw pixels (only where no image placement exists)
     for (let x = Math.max(0, startX); x < Math.min(CANVAS_SIZE, endX); x++) {
       for (let y = Math.max(0, startY); y < Math.min(CANVAS_SIZE, endY); y++) {
+        // Skip if covered by an image placement
+        const placement = getPlacementAt(x, y);
+        if (placement) continue;
+        
         const color = getPixelColor(x, y);
         if (color) {
           ctx.fillStyle = color;
@@ -98,6 +104,28 @@ export function PixelCanvas({
         }
       }
     }
+
+    // Draw image placements
+    placements.forEach((placement) => {
+      const img = loadedImages.get(placement.image_url);
+      if (img) {
+        const screenX = placement.x * pixelSize + offset.x;
+        const screenY = placement.y * pixelSize + offset.y;
+        const screenW = placement.width * pixelSize;
+        const screenH = placement.height * pixelSize;
+        
+        // Only draw if visible
+        if (screenX + screenW > 0 && screenX < width && 
+            screenY + screenH > 0 && screenY < height) {
+          ctx.drawImage(img, screenX, screenY, screenW, screenH);
+          
+          // Draw border around placement
+          ctx.strokeStyle = 'rgba(168, 85, 247, 0.5)';
+          ctx.lineWidth = 1;
+          ctx.strokeRect(screenX, screenY, screenW, screenH);
+        }
+      }
+    });
 
     // Draw hovered pixel highlight
     if (hoveredPixel && walletConnected && selectionMode === 'single') {
@@ -161,7 +189,21 @@ export function PixelCanvas({
     ctx.strokeStyle = 'rgba(168, 85, 247, 0.5)';
     ctx.lineWidth = 2;
     ctx.strokeRect(offset.x, offset.y, CANVAS_SIZE * pixelSize, CANVAS_SIZE * pixelSize);
-  }, [zoom, offset, pixels, hoveredPixel, selectedColor, walletConnected, getPixelColor, selectionMode, selectionStart, selectionEnd]);
+  }, [zoom, offset, pixels, hoveredPixel, selectedColor, walletConnected, getPixelColor, getPlacementAt, selectionMode, selectionStart, selectionEnd, placements, loadedImages]);
+
+  // Load images for placements
+  useEffect(() => {
+    placements.forEach((placement) => {
+      if (!loadedImages.has(placement.image_url)) {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => {
+          setLoadedImages(prev => new Map(prev).set(placement.image_url, img));
+        };
+        img.src = placement.image_url;
+      }
+    });
+  }, [placements, loadedImages]);
 
   // Draw the minimap
   const drawMinimap = useCallback(() => {
