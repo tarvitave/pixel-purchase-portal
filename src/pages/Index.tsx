@@ -7,6 +7,7 @@ import { ImagePurchaseModal } from '@/components/ImagePurchaseModal';
 import { OutbidBatchModal } from '@/components/OutbidBatchModal';
 import { Leaderboard } from '@/components/Leaderboard';
 import { MyPlacements } from '@/components/MyPlacements';
+import { BrowsePlacements } from '@/components/BrowsePlacements';
 import { UpdateLinkDialog } from '@/components/UpdateLinkDialog';
 import { ImagePlacementPanel, type ImagePlacementData } from '@/components/ImagePlacementPanel';
 import { usePixels, type Pixel } from '@/hooks/usePixels';
@@ -350,6 +351,15 @@ const Index = () => {
             onViewPlacement={handleViewPlacement}
             onReplacePlacement={handleReplacePlacement}
             onEditLink={handleEditLink}
+          />
+
+          {/* Browse All Placements */}
+          <BrowsePlacements
+            onViewPlacement={handleViewPlacement}
+            onOutbidPlacement={handleOutbidPlacement}
+            onReplacePlacement={handleReplacePlacement}
+            onEditLink={handleEditLink}
+            onVisitLink={handleVisitLink}
           />
 
           {/* Leaderboard */}
