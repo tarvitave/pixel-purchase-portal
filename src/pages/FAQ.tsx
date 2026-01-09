@@ -1,8 +1,13 @@
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
+import { Button } from '@/components/ui/button';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { ArrowLeft } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 const FAQ = () => {
+  const navigate = useNavigate();
+
   const faqs = [
     {
       question: "What is x402homepage.com?",
@@ -48,10 +53,18 @@ const FAQ = () => {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      <Header imageCount={0} pixelsCovered={0} />
+      <Header />
       
       <main className="flex-1 container mx-auto px-4 pt-24 pb-12">
         <div className="max-w-3xl mx-auto">
+          <Button 
+            variant="ghost" 
+            onClick={() => navigate('/')}
+            className="mb-4 -ml-2 text-muted-foreground hover:text-foreground"
+          >
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Back to Canvas
+          </Button>
           <h1 className="text-4xl font-bold text-foreground mb-2">Frequently Asked Questions</h1>
           <p className="text-muted-foreground mb-8">Everything you need to know about x402homepage.com</p>
           
