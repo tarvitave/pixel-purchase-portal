@@ -29,7 +29,7 @@ interface ExistingPixel {
 }
 
 
-const BASE_PRICE_LAMPORTS = 10_000; // 0.00001 SOL per pixel
+const BASE_PRICE_LAMPORTS = 1_000; // 0.000001 SOL per pixel
 
 export function BulkPurchaseModal({ 
   open, 
@@ -629,7 +629,7 @@ export function BulkPurchaseModal({
                     {outbidPixelCount} pixel{outbidPixelCount > 1 ? 's are' : ' is'} already owned
                   </p>
                   <p className="text-orange-200/80 mt-1">
-                    Outbid cost = previous price + 0.00001 SOL per pixel.
+                    Outbid cost = previous price + 0.000001 SOL per pixel.
                   </p>
                 </div>
               </div>
