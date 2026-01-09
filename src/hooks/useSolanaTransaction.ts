@@ -150,7 +150,29 @@ export function useSolanaTransaction(): UseSolanaTransactionReturn {
 
           console.log(`Sending ${lamports} lamports to ${treasuryWallet} on mainnet... (attempt ${attempt + 1})`);
 
-          const signedTransaction = await provider.signTransaction(transaction);
+          let signedTransaction;
+          try {
+            signedTransaction = await provider.signTransaction(transaction);
+          } catch (signError) {
+            const err = signError as { code?: number; message?: string };
+            // Phantom error -32603 often means insufficient balance or wallet issue
+            if (err.code === -32603) {
+              // Re-check balance to give specific error
+              const recheckBalance = await callSolanaRpc<{ value: number }>('getBalance', [
+                fromPubkey.toString(),
+                { commitment: 'confirmed' },
+              ]);
+              const currentBalance = recheckBalance.value;
+              if (currentBalance < requiredAmount) {
+                const balanceSol = (currentBalance / 1_000_000_000).toFixed(4);
+                const requiredSol = (requiredAmount / 1_000_000_000).toFixed(4);
+                throw new Error(`Insufficient balance: You have ${balanceSol} SOL but need ${requiredSol} SOL (including fees)`);
+              }
+              throw new Error('Wallet signing failed. Please try again or check your Phantom wallet.');
+            }
+            throw signError;
+          }
+          
           const raw = (signedTransaction as Transaction).serialize();
           const rawBase64 = bytesToBase64(raw);
 
