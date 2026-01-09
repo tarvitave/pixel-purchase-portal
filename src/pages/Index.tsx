@@ -170,7 +170,7 @@ const Index = () => {
               </li>
               <li className="flex gap-2">
                 <span className="text-primary font-bold">3.</span>
-                Drag to position on the 1000×1000 canvas
+                Drag to position on the 500×500 canvas
               </li>
               <li className="flex gap-2">
                 <span className="text-primary font-bold">4.</span>
@@ -205,7 +205,7 @@ const Index = () => {
             <div className="space-y-2">
               <div className="flex justify-between text-xs">
                 <span className="text-muted-foreground">Canvas Size</span>
-                <span className="font-mono text-foreground">1000 × 1000</span>
+                <span className="font-mono text-foreground">500 × 500</span>
               </div>
               <div className="flex justify-between text-xs">
                 <span className="text-muted-foreground">Images Placed</span>
@@ -217,7 +217,7 @@ const Index = () => {
               </div>
               <div className="flex justify-between text-xs">
                 <span className="text-muted-foreground">Available</span>
-                <span className="font-mono text-accent">{(1000000 - pixelsCovered).toLocaleString()}</span>
+                <span className="font-mono text-accent">{(250000 - pixelsCovered).toLocaleString()}</span>
               </div>
               <div className="flex justify-between text-xs">
                 <span className="text-muted-foreground">Base Price</span>

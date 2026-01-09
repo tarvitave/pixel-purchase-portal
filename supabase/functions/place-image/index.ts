@@ -168,14 +168,14 @@ serve(async (req) => {
     console.log('Place image request:', { x, y, width, height, wallet, price_lamports });
 
     // Validate bounds
-    if (x < 0 || y < 0 || x + width > 1000 || y + height > 1000) {
+    if (x < 0 || y < 0 || x + width > 500 || y + height > 500) {
       return new Response(
-        JSON.stringify({ error: 'Image placement out of bounds (canvas is 1000x1000)' }),
+        JSON.stringify({ error: 'Image placement out of bounds (canvas is 500x500)' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    if (width <= 0 || height <= 0 || width > 1000 || height > 1000) {
+    if (width <= 0 || height <= 0 || width > 500 || height > 500) {
       return new Response(
         JSON.stringify({ error: 'Invalid image dimensions' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

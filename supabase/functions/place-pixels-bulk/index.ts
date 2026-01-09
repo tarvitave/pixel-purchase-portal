@@ -197,7 +197,7 @@ serve(async (req) => {
 
     // Validate each pixel
     for (const pixel of pixels) {
-      if (pixel.x < 0 || pixel.x >= 1000 || pixel.y < 0 || pixel.y >= 1000) {
+      if (pixel.x < 0 || pixel.x >= 500 || pixel.y < 0 || pixel.y >= 500) {
         return new Response(
           JSON.stringify({ error: `Invalid pixel coordinates: (${pixel.x}, ${pixel.y})` }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
