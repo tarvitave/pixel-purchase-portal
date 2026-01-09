@@ -407,17 +407,22 @@ serve(async (req) => {
       };
     });
 
-    // Bulk upsert pixels
-    const { error: upsertError } = await supabase
-      .from('pixels')
-      .upsert(pixelData, { onConflict: 'x,y' });
+    // Bulk upsert pixels in batches to avoid CPU timeout
+    const BATCH_SIZE = 1000;
+    for (let i = 0; i < pixelData.length; i += BATCH_SIZE) {
+      const batch = pixelData.slice(i, i + BATCH_SIZE);
+      const { error: upsertError } = await supabase
+        .from('pixels')
+        .upsert(batch, { onConflict: 'x,y' });
 
-    if (upsertError) {
-      console.error('Error upserting pixels:', upsertError);
-      return new Response(
-        JSON.stringify({ error: 'Failed to place pixels' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      if (upsertError) {
+        console.error('Error upserting pixels batch:', upsertError);
+        return new Response(
+          JSON.stringify({ error: 'Failed to place pixels' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      console.log(`Batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(pixelData.length / BATCH_SIZE)} upserted`);
     }
 
     console.log(`${pixels.length} pixels placed successfully!`);
