@@ -112,6 +112,17 @@ export function usePhantom(): UsePhantomReturn {
 
     try {
       setConnecting(true);
+      
+      // Force disconnect first if provider thinks it's still connected
+      // This ensures the Phantom popup will always show
+      if (provider.isConnected) {
+        try {
+          await provider.disconnect();
+        } catch {
+          // Ignore disconnect errors
+        }
+      }
+      
       const response = await provider.connect();
       setConnected(true);
       setPublicKey(response.publicKey.toString());
