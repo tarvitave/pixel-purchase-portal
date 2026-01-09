@@ -22,7 +22,7 @@ export interface PixelMap {
 }
 
 const LAMPORTS_PER_SOL = 1_000_000_000;
-const BASE_PRICE_LAMPORTS = 10_000; // 0.00001 SOL
+const BASE_PRICE_LAMPORTS = 1_000; // 0.000001 SOL
 
 export function lamportsToSol(lamports: number): number {
   return lamports / LAMPORTS_PER_SOL;
@@ -34,7 +34,7 @@ export function solToLamports(sol: number): number {
 
 export function getMinBidLamports(currentPriceLamports: number | null): number {
   if (!currentPriceLamports) return BASE_PRICE_LAMPORTS;
-  // Minimum bid is current price + base price (0.00001 SOL)
+  // Minimum bid is current price + base price (0.000001 SOL)
   return currentPriceLamports + BASE_PRICE_LAMPORTS;
 }
 

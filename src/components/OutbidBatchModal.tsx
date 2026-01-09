@@ -14,7 +14,7 @@ interface OutbidBatchModalProps {
   clickedPixel: Pixel;
 }
 
-const OUTBID_PREMIUM_LAMPORTS = 10_000; // 0.00001 SOL extra per pixel
+const OUTBID_PREMIUM_LAMPORTS = 1_000; // 0.000001 SOL extra per pixel
 
 export function OutbidBatchModal({ open, onClose, batchId, clickedPixel }: OutbidBatchModalProps) {
   const { publicKey, connected } = usePhantom();

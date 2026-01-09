@@ -16,7 +16,7 @@ interface PurchaseModalProps {
   existingPixel?: Pixel;
 }
 
-const BASE_PRICE_SOL = 0.00001;
+const BASE_PRICE_SOL = 0.000001;
 
 export function PurchaseModal({ open, onClose, x, y, color, existingPixel }: PurchaseModalProps) {
   const { publicKey, connected } = usePhantom();

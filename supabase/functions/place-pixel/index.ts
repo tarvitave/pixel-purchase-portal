@@ -6,7 +6,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const BASE_PRICE_LAMPORTS = 10_000; // 0.00001 SOL
+const BASE_PRICE_LAMPORTS = 1_000; // 0.000001 SOL
 
 // Solana RPC endpoint - use custom RPC if configured, otherwise fallback to public
 const SOLANA_RPC = (() => {
