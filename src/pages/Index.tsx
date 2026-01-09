@@ -167,19 +167,19 @@ const Index = () => {
               </li>
               <li className="flex gap-2">
                 <span className="text-primary font-bold">2.</span>
-                Upload an image using the panel above
+                Upload an image and add a link URL
               </li>
               <li className="flex gap-2">
                 <span className="text-primary font-bold">3.</span>
-                Click on the canvas to place it
+                Drag to position on the 1000×1000 canvas
               </li>
               <li className="flex gap-2">
                 <span className="text-primary font-bold">4.</span>
-                Pay 0.001 SOL per pixel (1000 lamports)
+                Click "Place Image" and pay in SOL
               </li>
               <li className="flex gap-2">
                 <span className="text-primary font-bold">5.</span>
-                Click placed images to visit their links
+                Your image stays forever (or until outbid!)
               </li>
             </ol>
           </div>
