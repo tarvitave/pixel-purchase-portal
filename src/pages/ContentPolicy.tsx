@@ -1,15 +1,27 @@
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { AlertTriangle, Ban, ShieldX, Skull, Scale } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { AlertTriangle, Ban, ShieldX, Skull, Scale, ArrowLeft } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 export default function ContentPolicy() {
+  const navigate = useNavigate();
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <Header />
       
-      <main className="flex-1 container mx-auto px-4 py-12 max-w-4xl">
+      <main className="flex-1 container mx-auto px-4 py-12 pt-24 max-w-4xl">
         <div className="mb-8">
+          <Button 
+            variant="ghost" 
+            onClick={() => navigate('/')}
+            className="mb-4 -ml-2 text-muted-foreground hover:text-foreground"
+          >
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Back to Canvas
+          </Button>
           <h1 className="text-4xl font-bold text-foreground mb-4">Content Policy</h1>
           <p className="text-muted-foreground text-lg">
             To maintain a safe and welcoming environment for all users, we have established clear guidelines 
