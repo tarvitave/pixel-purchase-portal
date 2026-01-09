@@ -57,10 +57,24 @@ export function ImagePurchaseModal({
   const ownPlacements = overlappingPlacements.filter(p => p.owner_wallet === publicKey);
   const otherPlacements = overlappingPlacements.filter(p => p.owner_wallet !== publicKey);
 
-  // Calculate cost
-  const baseCost = pixelCount * BASE_PRICE_PER_PIXEL;
-  const outbidCost = otherPlacements.reduce((sum, p) => sum + Number(p.price_lamports), 0);
-  const totalCost = baseCost + outbidCost;
+  // Check if this placement fully covers all overlapping images
+  const notFullyCovered = otherPlacements.filter(p => 
+    !(minX <= p.x && minY <= p.y && minX + width >= p.x + p.width && minY + height >= p.y + p.height)
+  );
+
+  // Calculate cost: (max price per pixel + 0.000001 SOL) × total pixels
+  let pricePerPixel = BASE_PRICE_PER_PIXEL;
+  
+  if (otherPlacements.length > 0 && notFullyCovered.length === 0) {
+    // Find max price per pixel among overlapped images
+    const maxPricePerPixel = Math.max(...otherPlacements.map(p => {
+      const placementPixels = p.width * p.height;
+      return Number(p.price_lamports) / placementPixels;
+    }));
+    pricePerPixel = maxPricePerPixel + BASE_PRICE_PER_PIXEL;
+  }
+
+  const totalCost = Math.ceil(pixelCount * pricePerPixel);
 
   // Handle file upload
   const handleFileUpload = (e: ChangeEvent<HTMLInputElement>) => {
@@ -250,17 +264,34 @@ export function ImagePurchaseModal({
             </div>
           )}
 
-          {/* Outbid warning */}
-          {otherPlacements.length > 0 && (
+          {/* Error: not fully covering overlapped images */}
+          {notFullyCovered.length > 0 && (
+            <div className="p-4 bg-destructive/20 rounded-lg border border-destructive/50">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="w-5 h-5 text-destructive flex-shrink-0 mt-0.5" />
+                <div className="text-sm">
+                  <p className="font-medium text-destructive">
+                    Cannot place image here
+                  </p>
+                  <p className="text-destructive/80 mt-1">
+                    Your image must fully cover all overlapping images. {notFullyCovered.length} image{notFullyCovered.length > 1 ? 's are' : ' is'} not fully covered.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Outbid info */}
+          {otherPlacements.length > 0 && notFullyCovered.length === 0 && (
             <div className="p-4 bg-orange-500/20 rounded-lg border border-orange-500/50">
               <div className="flex items-start gap-3">
                 <AlertTriangle className="w-5 h-5 text-orange-400 flex-shrink-0 mt-0.5" />
                 <div className="text-sm">
                   <p className="font-medium text-orange-300">
-                    Overlaps {otherPlacements.length} existing image{otherPlacements.length > 1 ? 's' : ''}
+                    Outbidding {otherPlacements.length} existing image{otherPlacements.length > 1 ? 's' : ''}
                   </p>
                   <p className="text-orange-200/80 mt-1">
-                    You'll outbid these placements. Cost includes their current value.
+                    Price per pixel = highest existing price + 0.000001 SOL
                   </p>
                 </div>
               </div>
@@ -271,21 +302,12 @@ export function ImagePurchaseModal({
           <div className="p-4 bg-accent/20 rounded-lg border border-accent/30 space-y-3">
             <div className="flex justify-between items-center text-sm">
               <span className="text-muted-foreground">
-                {pixelCount} pixels × {lamportsToSol(BASE_PRICE_PER_PIXEL).toFixed(6)} SOL
+                {pixelCount} pixels × {lamportsToSol(pricePerPixel).toFixed(6)} SOL/pixel
               </span>
               <span className="font-mono text-foreground">
-                {lamportsToSol(baseCost).toFixed(6)} SOL
+                {lamportsToSol(totalCost).toFixed(6)} SOL
               </span>
             </div>
-            
-            {outbidCost > 0 && (
-              <div className="flex justify-between items-center text-sm">
-                <span className="text-muted-foreground">Outbid premium</span>
-                <span className="font-mono text-orange-400">
-                  {lamportsToSol(outbidCost).toFixed(6)} SOL
-                </span>
-              </div>
-            )}
             
             <div className="border-t border-border pt-3 flex justify-between items-center">
               <div className="text-xs text-muted-foreground">Total Cost</div>
@@ -307,7 +329,7 @@ export function ImagePurchaseModal({
             </Button>
             <Button
               onClick={handlePurchase}
-              disabled={isProcessing || !connected || !imagePreview}
+              disabled={isProcessing || !connected || !imagePreview || notFullyCovered.length > 0}
               className="flex-1 bg-gradient-to-r from-primary to-secondary hover:opacity-90"
             >
               {isProcessing ? (
