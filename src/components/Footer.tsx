@@ -22,6 +22,12 @@ export function Footer() {
               FAQ
             </NavLink>
             <NavLink 
+              to="/content-policy" 
+              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Content Policy
+            </NavLink>
+            <NavLink 
               to="/privacy" 
               className="text-sm text-muted-foreground hover:text-foreground transition-colors"
             >

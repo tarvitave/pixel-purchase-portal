@@ -7,8 +7,8 @@ import {
 } from '@/components/ui/hover-card';
 
 interface HeaderProps {
-  imageCount: number;
-  pixelsCovered: number;
+  imageCount?: number;
+  pixelsCovered?: number;
 }
 
 export function Header({ imageCount, pixelsCovered }: HeaderProps) {
@@ -99,18 +99,22 @@ export function Header({ imageCount, pixelsCovered }: HeaderProps) {
           >
             Contact Me
           </a>
-          <div className="text-center">
-            <div className="text-2xl font-bold font-mono text-foreground">
-              {imageCount.toLocaleString()}
+          {imageCount !== undefined && (
+            <div className="text-center">
+              <div className="text-2xl font-bold font-mono text-foreground">
+                {imageCount.toLocaleString()}
+              </div>
+              <div className="text-xs text-muted-foreground">Images Placed</div>
             </div>
-            <div className="text-xs text-muted-foreground">Images Placed</div>
-          </div>
-          <div className="text-center">
-            <div className="text-2xl font-bold font-mono text-primary">
-              {pixelsCovered.toLocaleString()}
+          )}
+          {pixelsCovered !== undefined && (
+            <div className="text-center">
+              <div className="text-2xl font-bold font-mono text-primary">
+                {pixelsCovered.toLocaleString()}
+              </div>
+              <div className="text-xs text-muted-foreground">Pixels Covered</div>
             </div>
-            <div className="text-xs text-muted-foreground">Pixels Covered</div>
-          </div>
+          )}
         </div>
 
         {/* Wallet */}
