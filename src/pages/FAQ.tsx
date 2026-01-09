@@ -25,13 +25,13 @@ const FAQ = () => {
           <h1 className="text-4xl font-bold text-foreground mb-2">Frequently Asked Questions</h1>
           <p className="text-muted-foreground mb-8">Everything you need to know about x402homepage.com</p>
           
-          <Accordion type="single" collapsible className="w-full">
+          <Accordion type="single" collapsible className="w-full text-base">
             {/* About */}
             <AccordionItem value="what-is">
-              <AccordionTrigger className="text-left text-foreground hover:text-primary">
+              <AccordionTrigger className="text-left text-lg text-foreground hover:text-primary">
                 What is x402homepage.com?
               </AccordionTrigger>
-              <AccordionContent className="text-muted-foreground space-y-2">
+              <AccordionContent className="text-base text-muted-foreground space-y-3">
                 <p>
                   x402homepage.com is a collaborative image canvas where anyone can purchase and own space 
                   using Solana cryptocurrency. Upload images, add links, and claim your spot on a shared 
@@ -42,10 +42,10 @@ const FAQ = () => {
 
             {/* x402 Protocol - Expanded */}
             <AccordionItem value="x402-protocol">
-              <AccordionTrigger className="text-left text-foreground hover:text-primary">
+              <AccordionTrigger className="text-left text-lg text-foreground hover:text-primary">
                 How does the HTTP x402 Protocol work?
               </AccordionTrigger>
-              <AccordionContent className="text-muted-foreground space-y-3">
+              <AccordionContent className="text-base text-muted-foreground space-y-3">
                 <p>
                   The <strong className="text-foreground">HTTP 402 "Payment Required"</strong> status code was 
                   reserved in the original HTTP specification for future use with digital payments. x402homepage.com 
@@ -56,10 +56,10 @@ const FAQ = () => {
                   verified and permanently recorded on the blockchain. This gives you verifiable, immutable 
                   proof of ownership that no centralized authority can revoke.
                 </p>
-                <p className="text-sm">
+                <p>
                   <strong className="text-foreground">Learn more:</strong>
                 </p>
-                <ul className="list-disc list-inside text-sm space-y-1 ml-2">
+                <ul className="list-disc list-inside space-y-1 ml-2">
                   <li>
                     <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/402" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
                       MDN: HTTP 402 Payment Required
@@ -81,10 +81,10 @@ const FAQ = () => {
 
             {/* Canvas & Image Size */}
             <AccordionItem value="canvas-size">
-              <AccordionTrigger className="text-left text-foreground hover:text-primary">
+              <AccordionTrigger className="text-left text-lg text-foreground hover:text-primary">
                 What is the canvas size and image requirements?
               </AccordionTrigger>
-              <AccordionContent className="text-muted-foreground space-y-2">
+              <AccordionContent className="text-base text-muted-foreground space-y-3">
                 <p>
                   The canvas is <strong className="text-foreground">500×500 pixels</strong> (250,000 total pixels). 
                   You can place images of any size that fits within the canvas bounds.
@@ -100,10 +100,10 @@ const FAQ = () => {
 
             {/* How to Purchase */}
             <AccordionItem value="how-to-purchase">
-              <AccordionTrigger className="text-left text-foreground hover:text-primary">
+              <AccordionTrigger className="text-left text-lg text-foreground hover:text-primary">
                 How do I place an image on the canvas?
               </AccordionTrigger>
-              <AccordionContent className="text-muted-foreground space-y-2">
+              <AccordionContent className="text-base text-muted-foreground space-y-3">
                 <ol className="list-decimal list-inside space-y-1 ml-2">
                   <li>Connect your <a href="https://phantom.app/" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Phantom wallet</a></li>
                   <li>Upload an image using the Image Placement panel</li>
@@ -116,10 +116,10 @@ const FAQ = () => {
 
             {/* Pricing */}
             <AccordionItem value="pricing">
-              <AccordionTrigger className="text-left text-foreground hover:text-primary">
+              <AccordionTrigger className="text-left text-lg text-foreground hover:text-primary">
                 What is the pricing for placing images?
               </AccordionTrigger>
-              <AccordionContent className="text-muted-foreground space-y-2">
+              <AccordionContent className="text-base text-muted-foreground space-y-3">
                 <p>
                   <strong className="text-foreground">Base price:</strong> 0.000001 SOL per pixel (1,000 lamports)
                 </p>
@@ -139,10 +139,10 @@ const FAQ = () => {
 
             {/* Outbidding */}
             <AccordionItem value="outbidding">
-              <AccordionTrigger className="text-left text-foreground hover:text-primary">
+              <AccordionTrigger className="text-left text-lg text-foreground hover:text-primary">
                 How does outbidding work?
               </AccordionTrigger>
-              <AccordionContent className="text-muted-foreground space-y-2">
+              <AccordionContent className="text-base text-muted-foreground space-y-3">
                 <p>
                   To place an image over existing images, your new image must <strong className="text-foreground">fully cover</strong> all 
                   overlapping images. Partial overlaps are not allowed.
@@ -155,10 +155,10 @@ const FAQ = () => {
 
             {/* Content Policy */}
             <AccordionItem value="content-policy">
-              <AccordionTrigger className="text-left text-foreground hover:text-primary">
+              <AccordionTrigger className="text-left text-lg text-foreground hover:text-primary">
                 What content is prohibited?
               </AccordionTrigger>
-              <AccordionContent className="text-muted-foreground space-y-2">
+              <AccordionContent className="text-base text-muted-foreground space-y-3">
                 <p>
                   All images are automatically screened using AI-powered content moderation <strong className="text-foreground">before payment</strong>. 
                   The following content is strictly prohibited:
@@ -180,10 +180,10 @@ const FAQ = () => {
 
             {/* Wallets */}
             <AccordionItem value="wallets">
-              <AccordionTrigger className="text-left text-foreground hover:text-primary">
+              <AccordionTrigger className="text-left text-lg text-foreground hover:text-primary">
                 Which wallets are supported?
               </AccordionTrigger>
-              <AccordionContent className="text-muted-foreground space-y-2">
+              <AccordionContent className="text-base text-muted-foreground space-y-3">
                 <p>
                   Currently, we support <a href="https://phantom.app/" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Phantom wallet</a> for 
                   Solana transactions. Phantom is available as a browser extension and mobile app.
@@ -197,10 +197,10 @@ const FAQ = () => {
 
             {/* Permanence */}
             <AccordionItem value="permanence">
-              <AccordionTrigger className="text-left text-foreground hover:text-primary">
+              <AccordionTrigger className="text-left text-lg text-foreground hover:text-primary">
                 Is my image placement permanent?
               </AccordionTrigger>
-              <AccordionContent className="text-muted-foreground space-y-2">
+              <AccordionContent className="text-base text-muted-foreground space-y-3">
                 <p>
                   Your image ownership is recorded on the Solana blockchain and stored permanently. However, 
                   other users can outbid your space by paying a higher price—if they do, they become the new owner 
@@ -214,10 +214,10 @@ const FAQ = () => {
 
             {/* Transaction Issues */}
             <AccordionItem value="transaction-issues">
-              <AccordionTrigger className="text-left text-foreground hover:text-primary">
+              <AccordionTrigger className="text-left text-lg text-foreground hover:text-primary">
                 What if I have issues with my transaction?
               </AccordionTrigger>
-              <AccordionContent className="text-muted-foreground space-y-2">
+              <AccordionContent className="text-base text-muted-foreground space-y-3">
                 <p>
                   All transactions are processed on the Solana blockchain. If you experience issues:
                 </p>
@@ -235,10 +235,10 @@ const FAQ = () => {
 
             {/* Links */}
             <AccordionItem value="links">
-              <AccordionTrigger className="text-left text-foreground hover:text-primary">
+              <AccordionTrigger className="text-left text-lg text-foreground hover:text-primary">
                 Can I add a link to my image?
               </AccordionTrigger>
-              <AccordionContent className="text-muted-foreground space-y-2">
+              <AccordionContent className="text-base text-muted-foreground space-y-3">
                 <p>
                   Yes! When placing an image, you can optionally add a URL. When other users click on your 
                   image, they'll be directed to your linked website.
