@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { PixelCanvas } from '@/components/PixelCanvas';
@@ -6,11 +6,23 @@ import { PurchaseModal } from '@/components/PurchaseModal';
 import { ImagePurchaseModal } from '@/components/ImagePurchaseModal';
 import { OutbidBatchModal } from '@/components/OutbidBatchModal';
 import { Leaderboard } from '@/components/Leaderboard';
+import { MyPlacements } from '@/components/MyPlacements';
+import { UpdateLinkDialog } from '@/components/UpdateLinkDialog';
 import { ImagePlacementPanel, type ImagePlacementData } from '@/components/ImagePlacementPanel';
 import { usePixels, type Pixel } from '@/hooks/usePixels';
-import { useImagePlacements } from '@/hooks/useImagePlacements';
+import { useImagePlacements, type ImagePlacement } from '@/hooks/useImagePlacements';
 import { usePhantom } from '@/hooks/usePhantom';
 import { toast } from 'sonner';
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuLabel,
+  ContextMenuTrigger,
+} from '@/components/ui/context-menu';
+import { RefreshCw, Edit, Eye, ExternalLink, DollarSign, Info } from 'lucide-react';
+import { lamportsToSol } from '@/hooks/usePixels';
 
 const Index = () => {
   const [selectedColor, setSelectedColor] = useState('#A855F7');
@@ -36,6 +48,9 @@ const Index = () => {
     clickedPixel: Pixel | null;
   }>({ open: false, batchId: '', clickedPixel: null });
   const [imagePlacement, setImagePlacement] = useState<ImagePlacementData | null>(null);
+  const [scrollToPlacement, setScrollToPlacement] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
+  const [updateLinkDialog, setUpdateLinkDialog] = useState<{ open: boolean; placement: ImagePlacement | null }>({ open: false, placement: null });
+  const [contextMenu, setContextMenu] = useState<{ placement: ImagePlacement; x: number; y: number } | null>(null);
   
   const { placementCount, getPlacementAt, pixelsCovered } = useImagePlacements();
   const { connected, publicKey } = usePhantom();
@@ -128,24 +143,158 @@ const Index = () => {
     });
   };
 
+  // Context menu handlers
+  const handleImageContextMenu = useCallback((placement: ImagePlacement, screenX: number, screenY: number) => {
+    setContextMenu({ placement, x: screenX, y: screenY });
+  }, []);
+
+  const handleViewPlacement = useCallback((placement: ImagePlacement) => {
+    setScrollToPlacement({ x: placement.x, y: placement.y, width: placement.width, height: placement.height });
+    // Reset after animation
+    setTimeout(() => setScrollToPlacement(null), 100);
+  }, []);
+
+  const handleReplacePlacement = useCallback((placement: ImagePlacement) => {
+    setImageModal({
+      open: true,
+      startX: placement.x,
+      startY: placement.y,
+      endX: placement.x + placement.width - 1,
+      endY: placement.y + placement.height - 1,
+    });
+  }, []);
+
+  const handleEditLink = useCallback((placement: ImagePlacement) => {
+    setUpdateLinkDialog({ open: true, placement });
+  }, []);
+
+  const handleOutbidPlacement = useCallback((placement: ImagePlacement) => {
+    setImageModal({
+      open: true,
+      startX: placement.x,
+      startY: placement.y,
+      endX: placement.x + placement.width - 1,
+      endY: placement.y + placement.height - 1,
+    });
+  }, []);
+
+  const handleVisitLink = useCallback((placement: ImagePlacement) => {
+    if (!placement.link_url) return;
+    let url = placement.link_url.trim();
+    if (!/^https?:\/\//i.test(url)) {
+      url = 'https://' + url;
+    }
+    window.open(url, '_blank', 'noopener,noreferrer');
+  }, []);
+
+  const isOwner = contextMenu?.placement.owner_wallet === publicKey;
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <Header imageCount={placementCount} pixelsCovered={pixelsCovered} />
       
       {/* Main content */}
       <main className="flex-1 pt-16 flex">
-        {/* Canvas area */}
-        <div className="flex-1 relative">
-          <PixelCanvas
-            selectedColor={selectedColor}
-            onPixelClick={handlePixelClick}
-            onRectangleSelect={handleRectangleSelect}
-            onImageDrop={handleImageDrop}
-            walletConnected={connected}
-            selectionMode={selectionMode}
-          />
-          
-        </div>
+        {/* Canvas area with context menu */}
+        <ContextMenu>
+          <ContextMenuTrigger asChild>
+            <div className="flex-1 relative">
+              <PixelCanvas
+                selectedColor={selectedColor}
+                onPixelClick={handlePixelClick}
+                onRectangleSelect={handleRectangleSelect}
+                onImageDrop={handleImageDrop}
+                onImageContextMenu={handleImageContextMenu}
+                walletConnected={connected}
+                selectionMode={selectionMode}
+                scrollToPlacement={scrollToPlacement}
+              />
+            </div>
+          </ContextMenuTrigger>
+          {contextMenu && (
+            <ContextMenuContent className="w-56">
+              <ContextMenuLabel className="flex items-center gap-2">
+                <Info className="w-3 h-3" />
+                Image at ({contextMenu.placement.x}, {contextMenu.placement.y})
+              </ContextMenuLabel>
+              <div className="px-2 pb-2 text-xs text-muted-foreground">
+                {contextMenu.placement.width}×{contextMenu.placement.height} pixels •{' '}
+                {lamportsToSol(contextMenu.placement.price_lamports).toFixed(6)} SOL
+              </div>
+              <ContextMenuSeparator />
+
+              {isOwner ? (
+                <>
+                  <ContextMenuItem 
+                    className="gap-2 cursor-pointer" 
+                    onClick={() => {
+                      handleReplacePlacement(contextMenu.placement);
+                      setContextMenu(null);
+                    }}
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                    Replace Image (Free)
+                  </ContextMenuItem>
+                  <ContextMenuItem 
+                    className="gap-2 cursor-pointer" 
+                    onClick={() => {
+                      handleEditLink(contextMenu.placement);
+                      setContextMenu(null);
+                    }}
+                  >
+                    <Edit className="w-4 h-4" />
+                    Update Link
+                  </ContextMenuItem>
+                  <ContextMenuItem 
+                    className="gap-2 cursor-pointer" 
+                    onClick={() => {
+                      handleViewPlacement(contextMenu.placement);
+                      setContextMenu(null);
+                    }}
+                  >
+                    <Eye className="w-4 h-4" />
+                    View on Canvas
+                  </ContextMenuItem>
+                </>
+              ) : (
+                <>
+                  <ContextMenuItem 
+                    className="gap-2 cursor-pointer" 
+                    onClick={() => {
+                      handleOutbidPlacement(contextMenu.placement);
+                      setContextMenu(null);
+                    }}
+                  >
+                    <DollarSign className="w-4 h-4" />
+                    Outbid This Image
+                  </ContextMenuItem>
+                  {contextMenu.placement.link_url && (
+                    <ContextMenuItem 
+                      className="gap-2 cursor-pointer" 
+                      onClick={() => {
+                        handleVisitLink(contextMenu.placement);
+                        setContextMenu(null);
+                      }}
+                    >
+                      <ExternalLink className="w-4 h-4" />
+                      Visit Link
+                    </ContextMenuItem>
+                  )}
+                  <ContextMenuItem 
+                    className="gap-2 cursor-pointer" 
+                    onClick={() => {
+                      handleViewPlacement(contextMenu.placement);
+                      setContextMenu(null);
+                    }}
+                  >
+                    <Eye className="w-4 h-4" />
+                    View Details
+                  </ContextMenuItem>
+                </>
+              )}
+            </ContextMenuContent>
+          )}
+        </ContextMenu>
 
         {/* Sidebar */}
         <aside className="w-80 bg-card/50 backdrop-blur-sm border-l border-border p-4 flex flex-col gap-4 overflow-y-auto">
@@ -195,6 +344,13 @@ const Index = () => {
               lightning-fast blockchain.
             </p>
           </div>
+
+          {/* My Placements */}
+          <MyPlacements
+            onViewPlacement={handleViewPlacement}
+            onReplacePlacement={handleReplacePlacement}
+            onEditLink={handleEditLink}
+          />
 
           {/* Leaderboard */}
           <Leaderboard />
@@ -259,6 +415,13 @@ const Index = () => {
           clickedPixel={batchOutbidModal.clickedPixel}
         />
       )}
+
+      {/* Update link dialog */}
+      <UpdateLinkDialog
+        open={updateLinkDialog.open}
+        onClose={() => setUpdateLinkDialog({ open: false, placement: null })}
+        placement={updateLinkDialog.placement}
+      />
 
       <Footer />
     </div>
