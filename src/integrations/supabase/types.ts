@@ -14,6 +14,51 @@ export type Database = {
   }
   public: {
     Tables: {
+      image_placements: {
+        Row: {
+          created_at: string
+          height: number
+          id: string
+          image_url: string
+          link_url: string | null
+          owner_wallet: string
+          price_lamports: number
+          transaction_signature: string | null
+          updated_at: string
+          width: number
+          x: number
+          y: number
+        }
+        Insert: {
+          created_at?: string
+          height: number
+          id?: string
+          image_url: string
+          link_url?: string | null
+          owner_wallet: string
+          price_lamports?: number
+          transaction_signature?: string | null
+          updated_at?: string
+          width: number
+          x: number
+          y: number
+        }
+        Update: {
+          created_at?: string
+          height?: number
+          id?: string
+          image_url?: string
+          link_url?: string | null
+          owner_wallet?: string
+          price_lamports?: number
+          transaction_signature?: string | null
+          updated_at?: string
+          width?: number
+          x?: number
+          y?: number
+        }
+        Relationships: []
+      }
       pixels: {
         Row: {
           batch_id: string | null

@@ -4,11 +4,12 @@ import { Footer } from '@/components/Footer';
 import { PixelCanvas } from '@/components/PixelCanvas';
 import { ColorPicker } from '@/components/ColorPicker';
 import { PurchaseModal } from '@/components/PurchaseModal';
-import { BulkPurchaseModal } from '@/components/BulkPurchaseModal';
+import { ImagePurchaseModal } from '@/components/ImagePurchaseModal';
 import { OutbidBatchModal } from '@/components/OutbidBatchModal';
 import { Leaderboard } from '@/components/Leaderboard';
 import { ImagePlacementPanel, type ImagePlacementData } from '@/components/ImagePlacementPanel';
 import { usePixels, type Pixel } from '@/hooks/usePixels';
+import { useImagePlacements } from '@/hooks/useImagePlacements';
 import { usePhantom } from '@/hooks/usePhantom';
 import { toast } from 'sonner';
 
@@ -21,7 +22,7 @@ const Index = () => {
     y: number;
     existingPixel?: Pixel;
   }>({ open: false, x: 0, y: 0 });
-  const [bulkModal, setBulkModal] = useState<{
+  const [imageModal, setImageModal] = useState<{
     open: boolean;
     startX: number;
     startY: number;
@@ -38,6 +39,7 @@ const Index = () => {
   const [imagePlacement, setImagePlacement] = useState<ImagePlacementData | null>(null);
   
   const { pixelCount } = usePixels();
+  const { placementCount, getPlacementAt } = useImagePlacements();
   const { connected, publicKey } = usePhantom();
 
   const handleImageReady = (data: ImagePlacementData) => {
@@ -56,13 +58,12 @@ const Index = () => {
       return;
     }
     
-    // If image placement mode is active, open bulk modal with the image
+    // If image placement mode is active, open image modal
     if (imagePlacement) {
       const endX = x + imagePlacement.width - 1;
       const endY = y + imagePlacement.height - 1;
       
-      // Store the image data for the bulk modal
-      setBulkModal({ 
+      setImageModal({ 
         open: true, 
         startX: x, 
         startY: y, 
@@ -71,7 +72,18 @@ const Index = () => {
         preloadedImage: imagePlacement.imageSrc,
         preloadedLinkUrl: imagePlacement.linkUrl,
       });
-      setImagePlacement(null); // Clear placement mode
+      setImagePlacement(null);
+      return;
+    }
+
+    // Check if clicking on an existing image placement
+    const existingPlacement = getPlacementAt(x, y);
+    if (existingPlacement && existingPlacement.link_url) {
+      let url = existingPlacement.link_url.trim();
+      if (!/^https?:\/\//i.test(url)) {
+        url = 'https://' + url;
+      }
+      window.open(url, '_blank', 'noopener,noreferrer');
       return;
     }
     
@@ -95,7 +107,7 @@ const Index = () => {
       return;
     }
     
-    setBulkModal({ open: true, startX, startY, endX, endY });
+    setImageModal({ open: true, startX, startY, endX, endY });
   };
 
   const handleImageDrop = (x: number, y: number, imageData: ImagePlacementData) => {
@@ -107,7 +119,7 @@ const Index = () => {
     const endX = x + imageData.width - 1;
     const endY = y + imageData.height - 1;
     
-    setBulkModal({ 
+    setImageModal({ 
       open: true, 
       startX: x, 
       startY: y, 
@@ -229,16 +241,16 @@ const Index = () => {
         existingPixel={purchaseModal.existingPixel}
       />
 
-      {/* Bulk purchase modal */}
-      <BulkPurchaseModal
-        open={bulkModal.open}
-        onClose={() => setBulkModal({ open: false, startX: 0, startY: 0, endX: 0, endY: 0 })}
-        startX={bulkModal.startX}
-        startY={bulkModal.startY}
-        endX={bulkModal.endX}
-        endY={bulkModal.endY}
-        preloadedImage={bulkModal.preloadedImage}
-        preloadedLinkUrl={bulkModal.preloadedLinkUrl}
+      {/* Image purchase modal */}
+      <ImagePurchaseModal
+        open={imageModal.open}
+        onClose={() => setImageModal({ open: false, startX: 0, startY: 0, endX: 0, endY: 0 })}
+        startX={imageModal.startX}
+        startY={imageModal.startY}
+        endX={imageModal.endX}
+        endY={imageModal.endY}
+        preloadedImage={imageModal.preloadedImage}
+        preloadedLinkUrl={imageModal.preloadedLinkUrl}
       />
 
       {/* Batch outbid modal */}
