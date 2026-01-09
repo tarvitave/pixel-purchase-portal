@@ -101,6 +101,9 @@ export function useImagePlacements() {
     });
   }, [placements]);
 
+  // Calculate total pixels covered by all placements
+  const pixelsCovered = placements.reduce((total, p) => total + (p.width * p.height), 0);
+
   return {
     placements,
     loading,
@@ -108,5 +111,6 @@ export function useImagePlacements() {
     getPlacementAt,
     getOverlappingPlacements,
     placementCount: placements.length,
+    pixelsCovered,
   };
 }

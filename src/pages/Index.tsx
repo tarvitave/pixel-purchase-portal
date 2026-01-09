@@ -37,8 +37,7 @@ const Index = () => {
   }>({ open: false, batchId: '', clickedPixel: null });
   const [imagePlacement, setImagePlacement] = useState<ImagePlacementData | null>(null);
   
-  const { pixelCount } = usePixels();
-  const { placementCount, getPlacementAt } = useImagePlacements();
+  const { placementCount, getPlacementAt, pixelsCovered } = useImagePlacements();
   const { connected, publicKey } = usePhantom();
 
   const handleImageReady = (data: ImagePlacementData) => {
@@ -131,7 +130,7 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      <Header pixelCount={pixelCount} />
+      <Header imageCount={placementCount} pixelsCovered={pixelsCovered} />
       
       {/* Main content */}
       <main className="flex-1 pt-16 flex">
@@ -209,12 +208,16 @@ const Index = () => {
                 <span className="font-mono text-foreground">1000 × 1000</span>
               </div>
               <div className="flex justify-between text-xs">
-                <span className="text-muted-foreground">Pixels Claimed</span>
-                <span className="font-mono text-foreground">{pixelCount.toLocaleString()}</span>
+                <span className="text-muted-foreground">Images Placed</span>
+                <span className="font-mono text-foreground">{placementCount.toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between text-xs">
+                <span className="text-muted-foreground">Pixels Covered</span>
+                <span className="font-mono text-foreground">{pixelsCovered.toLocaleString()}</span>
               </div>
               <div className="flex justify-between text-xs">
                 <span className="text-muted-foreground">Available</span>
-                <span className="font-mono text-accent">{(1000000 - pixelCount).toLocaleString()}</span>
+                <span className="font-mono text-accent">{(1000000 - pixelsCovered).toLocaleString()}</span>
               </div>
               <div className="flex justify-between text-xs">
                 <span className="text-muted-foreground">Base Price</span>

@@ -4,7 +4,7 @@ import { Footer } from '@/components/Footer';
 const PrivacyPolicy = () => {
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      <Header pixelCount={0} />
+      <Header imageCount={0} pixelsCovered={0} />
       
       <main className="flex-1 container mx-auto px-4 pt-24 pb-12">
         <div className="max-w-3xl mx-auto prose prose-invert">

@@ -1,10 +1,11 @@
 import { WalletButton } from './WalletButton';
 
 interface HeaderProps {
-  pixelCount: number;
+  imageCount: number;
+  pixelsCovered: number;
 }
 
-export function Header({ pixelCount }: HeaderProps) {
+export function Header({ imageCount, pixelsCovered }: HeaderProps) {
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-muted/95 backdrop-blur-md border-b border-border">
       <div className="container mx-auto px-4 h-16 flex items-center justify-between">
@@ -27,15 +28,15 @@ export function Header({ pixelCount }: HeaderProps) {
         <div className="hidden md:flex items-center gap-6">
           <div className="text-center">
             <div className="text-2xl font-bold font-mono text-foreground">
-              {pixelCount.toLocaleString()}
+              {imageCount.toLocaleString()}
             </div>
-            <div className="text-xs text-muted-foreground">Pixels Placed</div>
+            <div className="text-xs text-muted-foreground">Images Placed</div>
           </div>
           <div className="text-center">
             <div className="text-2xl font-bold font-mono text-primary">
-              1M
+              {pixelsCovered.toLocaleString()}
             </div>
-            <div className="text-xs text-muted-foreground">Total Pixels</div>
+            <div className="text-xs text-muted-foreground">Pixels Covered</div>
           </div>
         </div>
 
