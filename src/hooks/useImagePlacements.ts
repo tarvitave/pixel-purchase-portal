@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 
@@ -83,13 +83,22 @@ export function useImagePlacements() {
     };
   }, []);
 
-  const getPlacementAt = useCallback((x: number, y: number): ImagePlacement | undefined => {
-    // Find placement that contains this coordinate
-    return placements.find(p => 
-      x >= p.x && x < p.x + p.width && 
-      y >= p.y && y < p.y + p.height
-    );
+  // Create a spatial lookup map for O(1) placement checks
+  const placementMap = useMemo(() => {
+    const map = new Map<string, ImagePlacement>();
+    placements.forEach(p => {
+      for (let px = p.x; px < p.x + p.width; px++) {
+        for (let py = p.y; py < p.y + p.height; py++) {
+          map.set(`${px},${py}`, p);
+        }
+      }
+    });
+    return map;
   }, [placements]);
+
+  const getPlacementAt = useCallback((x: number, y: number): ImagePlacement | undefined => {
+    return placementMap.get(`${x},${y}`);
+  }, [placementMap]);
 
   const getOverlappingPlacements = useCallback((
     x: number, y: number, width: number, height: number
