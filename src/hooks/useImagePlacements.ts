@@ -64,7 +64,11 @@ export function useImagePlacements() {
           
           if (payload.eventType === 'INSERT') {
             const placement = payload.new as ImagePlacement;
-            setPlacements((prev) => [...prev, placement]);
+            setPlacements((prev) => {
+              // Avoid duplicates in case of race condition with initial fetch
+              if (prev.some(p => p.id === placement.id)) return prev;
+              return [...prev, placement];
+            });
           } else if (payload.eventType === 'UPDATE') {
             const placement = payload.new as ImagePlacement;
             setPlacements((prev) => 
@@ -76,7 +80,9 @@ export function useImagePlacements() {
           }
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('Image placements realtime subscription status:', status);
+      });
 
     return () => {
       supabase.removeChannel(channel);
