@@ -113,24 +113,38 @@ export function usePhantom(): UsePhantomReturn {
     try {
       setConnecting(true);
       
-      // Always disconnect first to force Phantom to show the authentication popup
-      // This clears any cached connection state
+      // Disconnect first to clear any cached state
       try {
         await provider.disconnect();
-        // Clear our local state as well
         setConnected(false);
         setPublicKey(null);
       } catch {
         // Ignore disconnect errors
       }
       
-      // Wait a moment to ensure disconnect is fully processed
-      await new Promise(resolve => setTimeout(resolve, 200));
-      
+      // Connect to get the public key
       const response = await provider.connect();
-      setConnected(true);
-      setPublicKey(response.publicKey.toString());
-      toast.success('Wallet connected!');
+      const walletAddress = response.publicKey.toString();
+      
+      // Force authentication by requiring a message signature
+      // This ALWAYS triggers Phantom's popup and requires user interaction
+      const message = `Sign in to x402homepage\n\nWallet: ${walletAddress}\nTimestamp: ${Date.now()}`;
+      const encodedMessage = new TextEncoder().encode(message);
+      
+      try {
+        await provider.signMessage(encodedMessage);
+        // Signature succeeded - user is authenticated
+        setConnected(true);
+        setPublicKey(walletAddress);
+        toast.success('Wallet connected!');
+      } catch (signError) {
+        // User rejected the signature - disconnect
+        console.log('User rejected signature:', signError);
+        await provider.disconnect();
+        setConnected(false);
+        setPublicKey(null);
+        toast.error('Connection cancelled');
+      }
     } catch (error) {
       console.error('Failed to connect wallet:', error);
       toast.error('Failed to connect wallet');
