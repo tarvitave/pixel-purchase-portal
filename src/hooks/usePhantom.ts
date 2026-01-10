@@ -113,15 +113,19 @@ export function usePhantom(): UsePhantomReturn {
     try {
       setConnecting(true);
       
-      // Force disconnect first if provider thinks it's still connected
-      // This ensures the Phantom popup will always show
-      if (provider.isConnected) {
-        try {
-          await provider.disconnect();
-        } catch {
-          // Ignore disconnect errors
-        }
+      // Always disconnect first to force Phantom to show the authentication popup
+      // This clears any cached connection state
+      try {
+        await provider.disconnect();
+        // Clear our local state as well
+        setConnected(false);
+        setPublicKey(null);
+      } catch {
+        // Ignore disconnect errors
       }
+      
+      // Wait a moment to ensure disconnect is fully processed
+      await new Promise(resolve => setTimeout(resolve, 200));
       
       const response = await provider.connect();
       setConnected(true);
