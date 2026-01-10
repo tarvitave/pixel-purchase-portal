@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useImagePlacements, ImagePlacement } from '@/hooks/useImagePlacements';
 import { usePhantom } from '@/hooks/usePhantom';
 import { Button } from '@/components/ui/button';
@@ -67,8 +67,9 @@ export function BrowsePlacements({
     }
   }, [placements, sortBy]);
 
-  const isOwned = (placement: ImagePlacement) => 
-    publicKey && placement.owner_wallet === publicKey;
+  const isOwned = useCallback((placement: ImagePlacement) => 
+    publicKey && placement.owner_wallet.toLowerCase() === publicKey.toLowerCase(),
+  [publicKey]);
 
   if (loading) {
     return (
