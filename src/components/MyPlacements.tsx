@@ -17,17 +17,18 @@ export function MyPlacements({ onViewPlacement, onReplacePlacement, onEditLink }
   const { placements } = useImagePlacements();
   const { publicKey, connected } = usePhantom();
 
-  if (!connected || !publicKey) {
-    return null;
-  }
-
   // Filter placements by current wallet - memoize based on publicKey
+  // Must be called before any conditional returns (Rules of Hooks)
   const myPlacements = useMemo(() => {
     if (!publicKey) return [];
     return placements.filter(p => 
       p.owner_wallet.toLowerCase() === publicKey.toLowerCase()
     );
   }, [placements, publicKey]);
+
+  if (!connected || !publicKey || myPlacements.length === 0) {
+    return null;
+  }
 
   if (myPlacements.length === 0) {
     return null;
